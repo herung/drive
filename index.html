@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>부드러운 운전</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0e1a1f;--fg:#e8f1ef;--mute:#7f9a98;--ok:#5fd0b0;--acc:#f2b134;--brk:#ff5a6e;--line:#26393e;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:dark}
+@media (prefers-color-scheme:light){:root:not([data-theme="dark"]){--bg:#f1f6f5;--fg:#12262b;--mute:#587274;--ok:#0f8a6a;--acc:#b97700;--brk:#d02745;--line:#c9d9d7;color-scheme:light}}
+:root[data-theme="dark"]{--bg:#0e1a1f;--fg:#e8f1ef;--mute:#7f9a98;--ok:#5fd0b0;--acc:#f2b134;--brk:#ff5a6e;--line:#26393e}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--fg);font-family:"Barlow Condensed","Apple SD Gothic Neo","Noto Sans KR",sans-serif;display:flex;flex-direction:column;padding:16px;transition:background .15s}
+body.w{background:color-mix(in srgb,var(--acc) 28%,var(--bg))}
+body.d{background:color-mix(in srgb,var(--brk) 32%,var(--bg))}
+.top{display:flex;justify-content:space-between;color:var(--mute);font-size:18px}
+.speed{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.speed b{font-size:min(38vw,190px);line-height:.9;font-weight:700;letter-spacing:-.02em}
+.speed span{color:var(--mute);font-size:22px}
+.msg{text-align:center;font-size:30px;min-height:40px;font-weight:700}
+.gauge{position:relative;height:34px;margin:14px 4px 6px;background:var(--line);border-radius:6px;overflow:hidden}
+.mid{position:absolute;left:50%;top:0;bottom:0;width:2px;background:var(--mute)}
+.fill{position:absolute;top:0;bottom:0;left:50%;width:0;background:var(--ok)}
+.lim{position:absolute;top:0;bottom:0;width:3px;background:var(--fg);opacity:.85}
+.scale{display:flex;justify-content:space-between;color:var(--mute);font-size:16px;margin:0 4px 12px}
+.row{display:flex;gap:12px;align-items:center;justify-content:space-between;font-size:18px;color:var(--mute)}
+button{font:inherit;font-size:24px;font-weight:700;padding:16px;border:0;border-radius:10px;background:var(--ok);color:#06231b;width:100%;margin-top:12px;cursor:pointer}
+button.stop{background:var(--line);color:var(--fg)}
+button:focus-visible{outline:3px solid var(--fg);outline-offset:2px}
+.note{font-size:16px;color:var(--mute);text-align:center;margin:10px 0 0;line-height:1.35}
+</style>
+</head>
+<body>
+<div class="top"><span id="st">대기 중</span><span id="ev">급가속 0 · 급감속 0</span></div>
+<div class="speed"><b id="v">0</b><span>km/h</span></div>
+<div class="msg" id="msg">시작을 누르세요</div>
+<div class="gauge"><div class="fill" id="fill"></div><div class="mid"></div>
+<div class="lim" id="limB" style="left:calc(50% - 9 / 14 * 50% - 1px)"></div>
+<div class="lim" id="limA" style="left:calc(50% + 8 / 14 * 50% - 1px)"></div></div>
+<div class="scale"><span id="lbB">감속 −9</span><span id="acc">0.0 km/h/초</span><span id="lbA">가속 +8</span></div>
+<div class="row"><span>소리 알림 <input type="checkbox" id="snd" checked></span><span id="gps">GPS 대기</span></div>
+<button id="btn">시작</button>
+<p class="note">화면을 켜 둔 채 거치대에 두고 사용하세요. 운전 중에는 화면을 보지 말고 소리로 확인하세요.</p>
+<script>
+const MAX=14;
+const $=id=>document.getElementById(id);
+let watch=null, hist=[], nA=0, nB=0, ctx=null, lock=null, lastBeep=0, lastKmh=null, prevDanger=false, lastLvl='';
+
+function beep(freq,n){
+  if(!$('snd').checked||!ctx) return;
+  for(let i=0;i<n;i++){
+    const o=ctx.createOscillator(), g=ctx.createGain();
+    o.frequency.value=freq; o.connect(g); g.connect(ctx.destination);
+    const t=ctx.currentTime+i*0.2;
+    g.gain.setValueAtTime(0.4,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.15);
+    o.start(t); o.stop(t+0.16);
+  }
+}
+function alertUser(kind,lvl){
+  const now=Date.now();
+  const upgrade=(lvl==='d'&&lastLvl==='w');
+  if(!upgrade && now-lastBeep<2000) return;
+  lastBeep=now; lastLvl=lvl;
+  const f=kind==='a'?880:440;
+  if(lvl==='w'){ beep(f,1); try{ navigator.vibrate&&navigator.vibrate(150); }catch(e){} }
+  else { beep(f,2); try{ navigator.vibrate&&navigator.vibrate([150,80,150]); }catch(e){} }
+}
+function speedOf(p,prev){
+  // GPS 속도(m/s) 우선, 없으면 두 지점 거리로 계산
+  if(p.coords.speed!=null && !isNaN(p.coords.speed)) return p.coords.speed*3.6;
+  if(!prev) return null;
+  const R=6371000,r=Math.PI/180,a=prev.lat*r,b=p.coords.latitude*r;
+  const dLat=b-a,dLon=(p.coords.longitude-prev.lon)*r;
+  const h=Math.sin(dLat/2)**2+Math.cos(a)*Math.cos(b)*Math.sin(dLon/2)**2;
+  const d=2*R*Math.asin(Math.sqrt(h)), dt=(p.timestamp-prev.t)/1000;
+  return dt>0? d/dt*3.6 : null;
+}
+function onPos(p){
+  const t=p.timestamp, prev=hist[hist.length-1];
+  let v=speedOf(p,prev&&{lat:prev.lat,lon:prev.lon,t:prev.t});
+  if(v==null) return;
+  // 가벼운 평활화로 GPS 잡음 줄이기
+  if(lastKmh!=null) v=lastKmh*0.3+v*0.7;
+  lastKmh=v;
+  hist.push({t,v,lat:p.coords.latitude,lon:p.coords.longitude});
+  hist=hist.filter(h=>t-h.t<5000);
+  $('v').textContent=Math.round(v);
+  $('gps').textContent='GPS ±'+Math.round(p.coords.accuracy)+'m';
+  // 약 1초 전 기록과 비교해 초당 속도 변화 계산
+  const ref=[...hist].reverse().find(h=>t-h.t>=900);
+  if(!ref) return;
+  const a=(v-ref.v)/((t-ref.t)/1000);
+  show(a,v,ref.v);
+}
+function limits(v,v0){
+  // 가속 기준: 출발(직전 5km/h 이하)은 8, 이후 현재 속도 구간별
+  let la, ta='급가속';
+  if(v0<=5){ la=8; ta='급출발'; }
+  else if(v<11) la=8; else if(v<21) la=7; else la=6;
+  const lb = v<=30?9 : v<=50?10 : 12;
+  return {la,lb,ta};
+}
+function show(a,v,v0){
+  const {la,lb,ta}=limits(v,v0);
+  $('acc').textContent=(a>0?'+':'')+a.toFixed(1)+' km/h/초';
+  const pct=Math.min(Math.abs(a),MAX)/MAX*50;
+  const f=$('fill');
+  f.style.width=pct+'%'; f.style.left=a>=0?'50%':(50-pct)+'%';
+  let kind=null, lvl='ok', name='';
+  if(a>0){
+    kind='a'; name=ta;
+    if(a>=la) lvl='d'; else if(a>=la-1) lvl='w';
+  }else{
+    const stopping=v<=5;
+    if(stopping||v>=6){
+      kind='b'; name=stopping?'급정지':'급감속';
+      const lim=stopping?9:lb;
+      if(-a>=lim) lvl='d'; else if(-a>=lim-1) lvl='w';
+    }
+  }
+  const lbShow=v<=5?9:lb;
+  $('limA').style.left='calc(50% + '+la+' / '+MAX+' * 50% - 1px)';
+  $('limB').style.left='calc(50% - '+lbShow+' / '+MAX+' * 50% - 1px)';
+  $('lbA').textContent='가속 +'+la; $('lbB').textContent='감속 −'+lbShow;
+  f.style.background=lvl==='d'?'var(--brk)':lvl==='w'?'var(--acc)':'var(--ok)';
+  document.body.className=lvl==='ok'?'':lvl;
+  $('msg').textContent=lvl==='d'?name+'! 부드럽게':lvl==='w'?(kind==='a'?'가속 주의':'감속 주의'):'좋아요';
+  const danger=lvl==='d';
+  if(danger&&!prevDanger){ if(kind==='a') nA++; else nB++; $('ev').textContent='급가속 '+nA+' · 급감속 '+nB; }
+  prevDanger=danger;
+  if(lvl!=='ok') alertUser(kind,lvl);
+}
+async function start(){
+  if(!navigator.geolocation){ $('msg').textContent='이 기기는 위치 기능을 지원하지 않아요'; return; }
+  try{ ctx=new (window.AudioContext||window.webkitAudioContext)(); ctx.resume(); }catch(e){}
+  try{ if(navigator.wakeLock) lock=await navigator.wakeLock.request('screen'); }catch(e){}
+  nA=nB=0; hist=[]; lastKmh=null; prevDanger=false; lastLvl='';
+  $('ev').textContent='급가속 0 · 급감속 0';
+  $('msg').textContent='GPS 신호 찾는 중…'; $('st').textContent='측정 중';
+  watch=navigator.geolocation.watchPosition(onPos,err=>{
+    $('msg').textContent=err.code===1?'위치 권한을 허용해 주세요':'GPS 신호를 받지 못했어요';
+  },{enableHighAccuracy:true,maximumAge:0,timeout:10000});
+  $('btn').textContent='종료'; $('btn').className='stop';
+}
+function stop(){
+  if(watch!=null) navigator.geolocation.clearWatch(watch); watch=null;
+  try{ lock&&lock.release(); }catch(e){} lock=null;
+  document.body.className=''; $('st').textContent='대기 중'; $('msg').textContent='시작을 누르세요';
+  $('btn').textContent='시작'; $('btn').className='';
+}
+$('btn').onclick=()=>watch==null?start():stop();
+document.addEventListener('visibilitychange',async()=>{
+  if(document.visibilityState==='visible'&&watch!=null&&navigator.wakeLock){
+    try{ lock=await navigator.wakeLock.request('screen'); }catch(e){}
+  }
+});
+</script>
+</body>
+</html>
