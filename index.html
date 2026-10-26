@@ -49,15 +49,26 @@ const MAX=14;
 const $=id=>document.getElementById(id);
 let watch=null, hist=[], nA=0, nB=0, wA=0, wB=0, prevLvl='ok', ctx=null, lock=null, lastBeep=0, lastKmh=null, prevDanger=false, lastLvl='';
 
+// 최대 음량(1.0)의 사각파 + 스피커가 잘 내는 고음역대로 크고 또렷하게
+function tone(t,dur,f1,f2){
+  const o=ctx.createOscillator(), g=ctx.createGain();
+  o.type='square';
+  o.frequency.setValueAtTime(f1,t);
+  if(f2) o.frequency.setValueAtTime(f2,t+dur/2);
+  g.gain.setValueAtTime(1,t); g.gain.setValueAtTime(1,t+dur-0.02); g.gain.linearRampToValueAtTime(0,t+dur);
+  o.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t+dur);
+}
+// 삡: 짧은 단음
 function beep(freq,n){
   if(!$('snd').checked||!ctx) return;
-  for(let i=0;i<n;i++){
-    const o=ctx.createOscillator(), g=ctx.createGain();
-    o.frequency.value=freq; o.connect(g); g.connect(ctx.destination);
-    const t=ctx.currentTime+i*0.2;
-    g.gain.setValueAtTime(0.4,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.15);
-    o.start(t); o.stop(t+0.16);
-  }
+  const t0=ctx.currentTime+0.02;
+  for(let i=0;i<n;i++) tone(t0+i*0.3,0.22,freq);
+}
+// 삐입 삐입: 높은 음에서 낮은 음으로 떨어지는 소리를 두 번
+function chirp(freq,n){
+  if(!$('snd').checked||!ctx) return;
+  const t0=ctx.currentTime+0.02;
+  for(let i=0;i<n;i++) tone(t0+i*0.45,0.34,freq,freq*0.7);
 }
 function updEv(){
   $('ev').textContent='급가속 '+nA+' · 급감속 '+nB+'\n경고 가속 '+wA+' · 감속 '+wB;
@@ -67,9 +78,9 @@ function alertUser(kind,lvl){
   const upgrade=(lvl==='d'&&lastLvl==='w');
   if(!upgrade && now-lastBeep<2000) return;
   lastBeep=now; lastLvl=lvl;
-  const f=kind==='a'?880:440;
+  const f=kind==='a'?2800:2200;
   if(lvl==='w'){ beep(f,1); try{ navigator.vibrate&&navigator.vibrate(150); }catch(e){} }
-  else { beep(f,2); try{ navigator.vibrate&&navigator.vibrate([150,80,150]); }catch(e){} }
+  else { chirp(f,2); try{ navigator.vibrate&&navigator.vibrate([150,80,150]); }catch(e){} }
 }
 function speedOf(p,prev){
   // GPS 속도(m/s) 우선, 없으면 두 지점 거리로 계산
@@ -92,8 +103,8 @@ function onPos(p){
   hist=hist.filter(h=>t-h.t<5000);
   $('v').textContent=Math.round(v);
   $('gps').textContent='GPS ±'+Math.round(p.coords.accuracy)+'m';
-  // 약 0.45초 이상 지난 기록과 비교해 초당 속도 변화 계산
-  const ref=[...hist].reverse().find(h=>t-h.t>=450);
+  // 직전 GPS 값(최소 0.2초 이전)과 비교해 초당 속도 변화 계산
+  const ref=[...hist].reverse().find(h=>t-h.t>=200);
   if(!ref) return;
   const a=(v-ref.v)/((t-ref.t)/1000);
   show(a,v,ref.v);
@@ -140,18 +151,18 @@ function show(a,v,v0){
 }
 async function start(){
   if(!navigator.geolocation){ $('msg').textContent='이 기기는 위치 기능을 지원하지 않아요'; return; }
-  try{ ctx=new (window.AudioContext||window.webkitAudioContext)(); ctx.resume(); beep(660,1); }catch(e){}
+  try{ ctx=new (window.AudioContext||window.webkitAudioContext)(); ctx.resume(); beep(2000,1); }catch(e){}
   try{ if(navigator.wakeLock) lock=await navigator.wakeLock.request('screen'); }catch(e){}
   nA=nB=0; wA=wB=0; prevLvl='ok'; hist=[]; lastKmh=null; prevDanger=false; lastLvl='';
   updEv();
-  $('msg').textContent='GPS 신호 찾는 중…'; $('st').textContent='측정 중';
+  $('msg').textContent='GPS 신호 찾는 중…'; $('st').textContent=lock?'측정 중 · 화면유지':'측정 중 · 화면유지 불가';
   watch=navigator.geolocation.watchPosition(onPos,err=>{
     $('msg').textContent=err.code===1?'위치 권한을 허용해 주세요':'GPS 신호를 받지 못했어요';
   },{enableHighAccuracy:true,maximumAge:0,timeout:10000});
   $('btn').textContent='종료'; $('btn').className='stop';
 }
 function stop(){
-  beep(520,1);
+  beep(1500,1);
   if(watch!=null) navigator.geolocation.clearWatch(watch); watch=null;
   try{ lock&&lock.release(); }catch(e){} lock=null;
   document.body.className=''; $('st').textContent='대기 중'; $('msg').textContent='시작을 누르세요';
