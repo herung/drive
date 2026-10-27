@@ -16,6 +16,9 @@ body{background:var(--bg);color:var(--fg);font-family:"Barlow Condensed","Apple 
 body.w{background:color-mix(in srgb,var(--acc) 28%,var(--bg))}
 body.d{background:color-mix(in srgb,var(--brk) 32%,var(--bg))}
 .top{display:flex;justify-content:space-between;color:var(--mute);font-size:18px}
+.evg{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:10px;text-align:center}
+.evg .c{background:var(--line);border-radius:8px;padding:6px 2px;display:flex;flex-direction:column;font-size:16px;color:var(--mute)}
+.evg b{font-size:24px}
 .speed{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center}
 .speed b{font-size:min(38vw,190px);line-height:.9;font-weight:700;letter-spacing:-.02em}
 .speed span{color:var(--mute);font-size:22px}
@@ -33,21 +36,21 @@ button:focus-visible{outline:3px solid var(--fg);outline-offset:2px}
 </style>
 </head>
 <body>
-<div class="top"><span id="st">대기 중</span><span id="ev" style="text-align:right;white-space:pre">급가속 0 · 급감속 0
-경고 가속 0 · 감속 0</span></div>
+<div class="top"><span id="st">대기 중</span><span style="font-size:15px">빨강 위반 · 노랑 경고</span></div>
+<div id="ev" class="evg"><div class="c"><span>급가속</span><span><b style="color:var(--brk)">0</b> / <b style="color:var(--acc)">0</b></span></div><div class="c"><span>급출발</span><span><b style="color:var(--brk)">0</b> / <b style="color:var(--acc)">0</b></span></div><div class="c"><span>급감속</span><span><b style="color:var(--brk)">0</b> / <b style="color:var(--acc)">0</b></span></div><div class="c"><span>급정지</span><span><b style="color:var(--brk)">0</b> / <b style="color:var(--acc)">0</b></span></div></div>
 <div class="speed"><b id="v">0</b><span>km/h</span></div>
 <div class="msg" id="msg">시작을 누르세요</div>
 <div class="gauge"><div class="fill" id="fill"></div><div class="mid"></div>
-<div class="lim" id="limB" style="left:calc(50% - 9 / 14 * 50% - 1px)"></div>
-<div class="lim" id="limA" style="left:calc(50% + 8 / 14 * 50% - 1px)"></div></div>
-<div class="scale"><span id="lbB">감속 −9</span><span id="acc">0.0 km/h/초</span><span id="lbA">가속 +8</span></div>
+<div class="lim" id="limB" style="left:calc(50% - 8 / 14 * 50% - 1px)"></div>
+<div class="lim" id="limA" style="left:calc(50% + 7 / 14 * 50% - 1px)"></div></div>
+<div class="scale"><span id="lbB">감속 −8</span><span id="acc">0.0 km/h/초</span><span id="lbA">가속 +7</span></div>
 <div class="row"><span>소리 알림 <input type="checkbox" id="snd" checked></span><span id="gps">GPS 대기</span></div>
 <button id="btn">시작</button>
 <p class="note">화면을 켜 둔 채 거치대에 두고 사용하세요. 운전 중에는 화면을 보지 말고 소리로 확인하세요.</p>
 <script>
 const MAX=14;
 const $=id=>document.getElementById(id);
-let watch=null, hist=[], nA=0, nB=0, wA=0, wB=0, prevLvl='ok', ctx=null, lock=null, lastBeep=0, lastKmh=null, prevDanger=false, lastLvl='';
+let watch=null, hist=[], cnt=null, prevLvl='ok', ctx=null, lock=null, lastBeep=0, lastKmh=null, prevDanger=false, lastLvl='';
 
 // 최대 음량(1.0)의 사각파 + 스피커가 잘 내는 고음역대로 크고 또렷하게
 function tone(t,dur,f1,f2){
@@ -70,8 +73,10 @@ function chirp(freq,n){
   const t0=ctx.currentTime+0.02;
   for(let i=0;i<n;i++) tone(t0+i*0.45,0.34,freq,freq*0.7);
 }
+const TYPES=['급가속','급출발','급감속','급정지'];
+function newCnt(){ const o={}; TYPES.forEach(k=>o[k]=[0,0]); return o; }
 function updEv(){
-  $('ev').textContent='급가속 '+nA+' · 급감속 '+nB+'\n경고 가속 '+wA+' · 감속 '+wB;
+  $('ev').innerHTML=TYPES.map(k=>'<div class="c"><span>'+k+'</span><span><b style="color:var(--brk)">'+cnt[k][0]+'</b> / <b style="color:var(--acc)">'+cnt[k][1]+'</b></span></div>').join('');
 }
 function alertUser(kind,lvl){
   const now=Date.now();
@@ -103,8 +108,8 @@ function onPos(p){
   hist=hist.filter(h=>t-h.t<5000);
   $('v').textContent=Math.round(v);
   $('gps').textContent='GPS ±'+Math.round(p.coords.accuracy)+'m';
-  // 직전 GPS 값(최소 0.2초 이전)과 비교해 초당 속도 변화 계산
-  const ref=[...hist].reverse().find(h=>t-h.t>=200);
+  // 약 1초 전 기록과 비교해 초당 속도 변화 계산
+  const ref=[...hist].reverse().find(h=>t-h.t>=900);
   if(!ref) return;
   const a=(v-ref.v)/((t-ref.t)/1000);
   show(a,v,ref.v);
@@ -112,9 +117,9 @@ function onPos(p){
 function limits(v,v0){
   // 가속 기준: 출발(직전 5km/h 이하)은 8, 이후 현재 속도 구간별
   let la, ta='급가속';
-  if(v0<=5){ la=8; ta='급출발'; }
-  else if(v<11) la=8; else if(v<21) la=7; else la=6;
-  const lb = v<=30?9 : v<=50?10 : 12;
+  if(v0<=5){ la=7; ta='급출발'; }
+  else if(v<11) la=7; else if(v<21) la=6; else la=5;
+  const lb = v<=30?8 : v<=50?9 : 11;
   return {la,lb,ta};
 }
 function show(a,v,v0){
@@ -131,11 +136,11 @@ function show(a,v,v0){
     const stopping=v<=5;
     if(stopping||v>=6){
       kind='b'; name=stopping?'급정지':'급감속';
-      const lim=stopping?9:lb;
+      const lim=stopping?8:lb;
       if(-a>=lim) lvl='d'; else if(-a>=lim-1) lvl='w';
     }
   }
-  const lbShow=v<=5?9:lb;
+  const lbShow=v<=5?8:lb;
   $('limA').style.left='calc(50% + '+la+' / '+MAX+' * 50% - 1px)';
   $('limB').style.left='calc(50% - '+lbShow+' / '+MAX+' * 50% - 1px)';
   $('lbA').textContent='가속 +'+la; $('lbB').textContent='감속 −'+lbShow;
@@ -143,8 +148,8 @@ function show(a,v,v0){
   document.body.className=lvl==='ok'?'':lvl;
   $('msg').textContent=lvl==='d'?name+'! 부드럽게':lvl==='w'?(kind==='a'?'가속 주의':'감속 주의'):'좋아요';
   const danger=lvl==='d';
-  if(danger&&!prevDanger){ if(kind==='a') nA++; else nB++; updEv(); }
-  if(lvl==='w'&&prevLvl==='ok'){ if(kind==='a') wA++; else wB++; updEv(); }
+  if(danger&&!prevDanger){ cnt[name][0]++; updEv(); }
+  if(lvl==='w'&&prevLvl==='ok'){ cnt[name][1]++; updEv(); }
   prevLvl=lvl;
   prevDanger=danger;
   if(lvl!=='ok') alertUser(kind,lvl);
@@ -153,7 +158,7 @@ async function start(){
   if(!navigator.geolocation){ $('msg').textContent='이 기기는 위치 기능을 지원하지 않아요'; return; }
   try{ ctx=new (window.AudioContext||window.webkitAudioContext)(); ctx.resume(); beep(2000,1); }catch(e){}
   try{ if(navigator.wakeLock) lock=await navigator.wakeLock.request('screen'); }catch(e){}
-  nA=nB=0; wA=wB=0; prevLvl='ok'; hist=[]; lastKmh=null; prevDanger=false; lastLvl='';
+  cnt=newCnt(); prevLvl='ok'; hist=[]; lastKmh=null; prevDanger=false; lastLvl='';
   updEv();
   $('msg').textContent='GPS 신호 찾는 중…'; $('st').textContent=lock?'측정 중 · 화면유지':'측정 중 · 화면유지 불가';
   watch=navigator.geolocation.watchPosition(onPos,err=>{
