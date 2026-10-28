@@ -32,6 +32,11 @@ body.d{background:color-mix(in srgb,var(--brk) 32%,var(--bg))}
 button{font:inherit;font-size:24px;font-weight:700;padding:16px;border:0;border-radius:10px;background:var(--ok);color:#06231b;width:100%;margin-top:12px;cursor:pointer}
 button.stop{background:var(--line);color:var(--fg)}
 button:focus-visible{outline:3px solid var(--fg);outline-offset:2px}
+.ghost{background:var(--line);color:var(--fg);font-size:18px;padding:10px 14px;width:auto;margin:8px 6px 0 0}
+#hist{position:fixed;inset:0;z-index:20;background:var(--bg);overflow:auto;padding:calc(16px + env(safe-area-inset-top,0px)) 16px calc(16px + env(safe-area-inset-bottom,0px));display:none}
+#hist.on{display:block}
+.day{border-top:1px solid var(--line);padding:12px 0;font-size:18px}
+.day h3{margin:0 0 6px;font-size:22px}
 .note{font-size:16px;color:var(--mute);text-align:center;margin:10px 0 0;line-height:1.35}
 </style>
 </head>
@@ -43,9 +48,11 @@ button:focus-visible{outline:3px solid var(--fg);outline-offset:2px}
 <div class="gauge"><div class="fill" id="fill"></div><div class="mid"></div>
 <div class="lim" id="limB" style="left:calc(50% - 8.5 / 14 * 50% - 1px)"></div>
 <div class="lim" id="limA" style="left:calc(50% + 7.5 / 14 * 50% - 1px)"></div></div>
-<div class="scale"><span id="lbB">감속 −8.5</span><span id="acc">0.0 km/h/초</span><span id="lbA">가속 +7.5</span></div>
+<div class="scale"><span id="lbB">감속 −8.5</span><span id="acc"></span><span id="lbA">가속 +7.5</span></div>
 <div class="row"><span>소리 알림 <input type="checkbox" id="snd" checked></span><span id="gps">GPS 대기</span></div>
 <button id="btn">시작</button>
+<button id="hbtn" class="ghost">기록 보기</button>
+<div id="hist"></div>
 <p class="note">화면을 켜 둔 채 거치대에 두고 사용하세요. 운전 중에는 화면을 보지 말고 소리로 확인하세요.</p>
 <script>
 const MAX=14;
@@ -78,6 +85,62 @@ function newCnt(){ const o={}; TYPES.forEach(k=>o[k]=[0,0]); return o; }
 function updEv(){
   $('ev').innerHTML=TYPES.map(k=>'<div class="c"><span>'+k+'</span><span><b style="color:var(--brk)">'+cnt[k][0]+'</b> / <b style="color:var(--acc)">'+cnt[k][1]+'</b></span></div>').join('');
 }
+let active=false, warmAt=0, warmTimer=null, saveTimer=null, drive=null, km=0;
+const KEY='drive_log_v1';
+function loadLog(){ try{ return JSON.parse(localStorage.getItem(KEY))||[]; }catch(e){ return []; } }
+function saveDrive(){
+  if(!drive) return;
+  drive.end=Date.now(); drive.km=Math.round(km*10)/10;
+  try{
+    let log=loadLog().filter(d=>d.id!==drive.id); log.push(drive);
+    const cut=Date.now()-30*864e5; log=log.filter(d=>d.start>cut);
+    localStorage.setItem(KEY,JSON.stringify(log));
+  }catch(e){}
+}
+function rec(l,n,v,a,acc){
+  if(!drive||drive.events.length>=500) return;
+  drive.events.push({t:Date.now(),n:n,l:l,v:Math.round(v*10)/10,a:Math.round(a*10)/10,acc:Math.round(acc)});
+  saveDrive();
+}
+function warmTick(){
+  const left=Math.ceil((5000-(Date.now()-warmAt))/1000);
+  if(left>0){ $('msg').textContent='GPS 안정화 중… '+left; return; }
+  clearInterval(warmTimer); warmTimer=null;
+  active=true; hist=[]; km=0; cnt=newCnt(); updEv();
+  drive={id:Date.now(),start:Date.now(),end:Date.now(),km:0,cnt:cnt,events:[]};
+  saveTimer=setInterval(saveDrive,15000); saveDrive();
+  $('st').textContent=lock?'측정 중 · 화면유지':'측정 중 · 화면유지 불가';
+  $('msg').textContent='측정 시작'; beep(2000,1);
+}
+function endDrive(){
+  clearInterval(warmTimer); clearInterval(saveTimer); warmTimer=saveTimer=null;
+  saveDrive(); drive=null; active=false; warmAt=0;
+}
+const fmtT=ms=>new Date(ms).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',hour12:false});
+const dayKey=ms=>{ const d=new Date(ms); return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate(); };
+function cellsHTML(c){ return TYPES.map(k=>'<div class="c"><span>'+k+'</span><span><b style="color:var(--brk)">'+c[k][0]+'</b> / <b style="color:var(--acc)">'+c[k][1]+'</b></span></div>').join(''); }
+function copyLog(log){
+  const txt=log.map(d=>'['+new Date(d.start).toLocaleDateString('ko-KR')+' '+fmtT(d.start)+'~'+fmtT(d.end)+' '+d.km+'km]\n'+d.events.map(e=>new Date(e.t).toLocaleTimeString('ko-KR',{hour12:false})+' '+e.n+' '+(e.l==='d'?'위반':'경고')+' 속도'+e.v+' 가속도'+e.a+' GPS오차'+e.acc+'m').join('\n')).join('\n\n');
+  const ta=$('hta');
+  navigator.clipboard.writeText(txt).then(()=>{ $('hc').textContent='복사됨'; }).catch(()=>{ ta.style.display='block'; ta.value=txt; ta.select(); });
+}
+function openHist(){
+  const log=loadLog().sort((a,b)=>b.start-a.start);
+  const days={}; log.forEach(d=>{ (days[dayKey(d.start)]=days[dayKey(d.start)]||[]).push(d); });
+  let h='<h2>운행 기록 (최근 30일)</h2><button class="ghost" id="hx">닫기</button><button class="ghost" id="hc">기록 복사</button><button class="ghost" id="hd">전체 삭제</button><textarea id="hta" readonly style="display:none;width:100%;height:160px;margin-top:8px"></textarea>';
+  Object.keys(days).forEach(k=>{
+    const ds=days[k], tot=newCnt(); let km2=0, min=0;
+    ds.forEach(d=>{ km2+=d.km; min+=(d.end-d.start)/60000; TYPES.forEach(t=>{ tot[t][0]+=d.cnt[t][0]; tot[t][1]+=d.cnt[t][1]; }); });
+    h+='<div class="day"><h3>'+new Date(ds[0].start).toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'})+'</h3>';
+    h+='<div>운행 '+ds.length+'회 · '+Math.round(min)+'분 · '+km2.toFixed(1)+'km</div><div class="evg">'+cellsHTML(tot)+'</div>';
+    h+=ds.map(d=>'<div style="color:var(--mute);font-size:16px">'+fmtT(d.start)+'~'+fmtT(d.end)+' · '+d.km+'km · 위반 '+TYPES.reduce((s,t)=>s+d.cnt[t][0],0)+' · 경고 '+TYPES.reduce((s,t)=>s+d.cnt[t][1],0)+'</div>').join('')+'</div>';
+  });
+  if(!log.length) h+='<p>아직 기록이 없어요.</p>';
+  $('hist').innerHTML=h; $('hist').className='on';
+  $('hx').onclick=()=>{ $('hist').className=''; };
+  $('hd').onclick=()=>{ if(confirm('모든 기록을 삭제할까요?')){ try{ localStorage.removeItem(KEY); }catch(e){} openHist(); } };
+  $('hc').onclick=()=>copyLog(log);
+}
 function alertUser(kind,lvl){
   const now=Date.now();
   const upgrade=(lvl==='d'&&lastLvl==='w');
@@ -98,21 +161,24 @@ function speedOf(p,prev){
   return dt>0? d/dt*3.6 : null;
 }
 function onPos(p){
+  if(!warmAt){ warmAt=Date.now(); warmTimer=setInterval(warmTick,250); }
   const t=p.timestamp, prev=hist[hist.length-1];
   let v=speedOf(p,prev&&{lat:prev.lat,lon:prev.lon,t:prev.t});
   if(v==null) return;
   // 가벼운 평활화로 GPS 잡음 줄이기
   if(lastKmh!=null) v=lastKmh*0.3+v*0.7;
   lastKmh=v;
+  if(active&&prev) km+=v*((t-prev.t)/3600000);
   hist.push({t,v,lat:p.coords.latitude,lon:p.coords.longitude});
   hist=hist.filter(h=>t-h.t<5000);
   $('v').textContent=Math.round(v);
   $('gps').textContent='GPS ±'+Math.round(p.coords.accuracy)+'m';
+  if(!active) return;
   // 약 1초 전 기록과 비교해 초당 속도 변화 계산
   const ref=[...hist].reverse().find(h=>t-h.t>=900);
   if(!ref) return;
   const a=(v-ref.v)/((t-ref.t)/1000);
-  show(a,v,ref.v);
+  show(a,v,ref.v,p.coords.accuracy);
 }
 function limits(v,v0){
   // 가속 기준: 출발(직전 5km/h 이하)은 8, 이후 현재 속도 구간별
@@ -122,9 +188,9 @@ function limits(v,v0){
   const lb = v<=30?8.5 : v<=50?9.5 : 11.5;
   return {la,lb,ta};
 }
-function show(a,v,v0){
+function show(a,v,v0,acc){
   const {la,lb,ta}=limits(v,v0);
-  $('acc').textContent=(a>0?'+':'')+a.toFixed(1)+' km/h/초';
+  const an=(a>0?'+':'')+a.toFixed(1);
   const pct=Math.min(Math.abs(a),MAX)/MAX*50;
   const f=$('fill');
   f.style.width=pct+'%'; f.style.left=a>=0?'50%':(50-pct)+'%';
@@ -146,35 +212,37 @@ function show(a,v,v0){
   $('lbA').textContent='가속 +'+la; $('lbB').textContent='감속 −'+lbShow;
   f.style.background=lvl==='d'?'var(--brk)':lvl==='w'?'var(--acc)':'var(--ok)';
   document.body.className=lvl==='ok'?'':lvl;
-  $('msg').textContent=lvl==='d'?name+'! 부드럽게':lvl==='w'?(kind==='a'?'가속 주의':'감속 주의'):'좋아요';
+  $('msg').textContent=lvl==='d'?name+'! '+an:lvl==='w'?(kind==='a'?'가속 주의 ':'감속 주의 ')+an:an+' km/h/초';
   const danger=lvl==='d';
-  if(danger&&!prevDanger){ cnt[name][0]++; updEv(); }
-  if(lvl==='w'&&prevLvl==='ok'){ cnt[name][1]++; updEv(); }
+  if(danger&&!prevDanger){ cnt[name][0]++; updEv(); rec('d',name,v,a,acc); }
+  if(lvl==='w'&&prevLvl==='ok'){ cnt[name][1]++; updEv(); rec('w',name,v,a,acc); }
   prevLvl=lvl;
   prevDanger=danger;
   if(lvl!=='ok') alertUser(kind,lvl);
 }
 async function start(){
   if(!navigator.geolocation){ $('msg').textContent='이 기기는 위치 기능을 지원하지 않아요'; return; }
-  try{ ctx=new (window.AudioContext||window.webkitAudioContext)(); ctx.resume(); beep(2000,1); }catch(e){}
+  try{ ctx=new (window.AudioContext||window.webkitAudioContext)(); ctx.resume(); }catch(e){}
   try{ if(navigator.wakeLock) lock=await navigator.wakeLock.request('screen'); }catch(e){}
-  cnt=newCnt(); prevLvl='ok'; hist=[]; lastKmh=null; prevDanger=false; lastLvl='';
+  cnt=newCnt(); prevLvl='ok'; hist=[]; lastKmh=null; prevDanger=false; lastLvl=''; active=false; warmAt=0; drive=null;
   updEv();
-  $('msg').textContent='GPS 신호 찾는 중…'; $('st').textContent=lock?'측정 중 · 화면유지':'측정 중 · 화면유지 불가';
+  $('msg').textContent='GPS 신호 찾는 중…'; $('st').textContent='GPS 연결 중';
   watch=navigator.geolocation.watchPosition(onPos,err=>{
     $('msg').textContent=err.code===1?'위치 권한을 허용해 주세요':'GPS 신호를 받지 못했어요';
   },{enableHighAccuracy:true,maximumAge:0,timeout:10000});
   $('btn').textContent='종료'; $('btn').className='stop';
 }
 function stop(){
-  beep(1500,1);
+  if(active) beep(1500,1); endDrive();
   if(watch!=null) navigator.geolocation.clearWatch(watch); watch=null;
   try{ lock&&lock.release(); }catch(e){} lock=null;
   document.body.className=''; $('st').textContent='대기 중'; $('msg').textContent='시작을 누르세요';
   $('btn').textContent='시작'; $('btn').className='';
 }
 $('btn').onclick=()=>watch==null?start():stop();
+$('hbtn').onclick=openHist;
 document.addEventListener('visibilitychange',async()=>{
+  if(document.visibilityState==='hidden') saveDrive();
   if(document.visibilityState==='visible'&&watch!=null&&navigator.wakeLock){
     try{ lock=await navigator.wakeLock.request('screen'); }catch(e){}
   }
