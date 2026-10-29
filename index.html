@@ -37,6 +37,11 @@ button:focus-visible{outline:3px solid var(--fg);outline-offset:2px}
 #hist.on{display:block}
 .day{border-top:1px solid var(--line);padding:12px 0;font-size:18px}
 .day h3{margin:0 0 6px;font-size:22px}
+.dr{margin-top:8px;font-size:16px}
+.dr summary{cursor:pointer;color:var(--mute);padding:6px 0}
+.el{margin-top:8px}
+.er{display:grid;grid-template-columns:1.1fr 1.3fr .8fr 1.6fr;gap:4px;font-size:14px;padding:3px 0;border-bottom:1px solid var(--line)}
+.er.hd{color:var(--mute)}
 .note{font-size:16px;color:var(--mute);text-align:center;margin:10px 0 0;line-height:1.35}
 </style>
 </head>
@@ -124,6 +129,12 @@ function copyLog(log){
   const ta=$('hta');
   navigator.clipboard.writeText(txt).then(()=>{ $('hc').textContent='복사됨'; }).catch(()=>{ ta.style.display='block'; ta.value=txt; ta.select(); });
 }
+const fmtS=ms=>new Date(ms).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+function driveHTML(d){
+  const nd=TYPES.reduce((s,t)=>s+d.cnt[t][0],0), nw=TYPES.reduce((s,t)=>s+d.cnt[t][1],0);
+  const rows=d.events.map(e=>'<div class="er"><span>'+fmtS(e.t)+'</span><span style="color:var(--'+(e.l==='d'?'brk':'acc')+')">'+e.n+(e.l==='d'?' 위반':' 경고')+'</span><span>'+(e.a>0?'+':'')+e.a+'</span><span>'+e.v+'km/h · ±'+e.acc+'m</span></div>').join('')||'<div>이벤트 없음</div>';
+  return '<details class="dr"><summary>'+fmtT(d.start)+'~'+fmtT(d.end)+' · '+d.km+'km · 위반 '+nd+' · 경고 '+nw+'</summary><div class="evg">'+cellsHTML(d.cnt)+'</div><div class="el"><div class="er hd"><span>시각</span><span>유형</span><span>가속도</span><span>속도·GPS오차</span></div>'+rows+'</div><button class="ghost del" data-id="'+d.id+'">이 운행 삭제</button></details>';
+}
 function openHist(){
   const log=loadLog().sort((a,b)=>b.start-a.start);
   const days={}; log.forEach(d=>{ (days[dayKey(d.start)]=days[dayKey(d.start)]||[]).push(d); });
@@ -133,13 +144,20 @@ function openHist(){
     ds.forEach(d=>{ km2+=d.km; min+=(d.end-d.start)/60000; TYPES.forEach(t=>{ tot[t][0]+=d.cnt[t][0]; tot[t][1]+=d.cnt[t][1]; }); });
     h+='<div class="day"><h3>'+new Date(ds[0].start).toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'})+'</h3>';
     h+='<div>운행 '+ds.length+'회 · '+Math.round(min)+'분 · '+km2.toFixed(1)+'km</div><div class="evg">'+cellsHTML(tot)+'</div>';
-    h+=ds.map(d=>'<div style="color:var(--mute);font-size:16px">'+fmtT(d.start)+'~'+fmtT(d.end)+' · '+d.km+'km · 위반 '+TYPES.reduce((s,t)=>s+d.cnt[t][0],0)+' · 경고 '+TYPES.reduce((s,t)=>s+d.cnt[t][1],0)+'</div>').join('')+'</div>';
+    h+=ds.map(driveHTML).join('')+'</div>';
   });
   if(!log.length) h+='<p>아직 기록이 없어요.</p>';
   $('hist').innerHTML=h; $('hist').className='on';
   $('hx').onclick=()=>{ $('hist').className=''; };
   $('hd').onclick=()=>{ if(confirm('모든 기록을 삭제할까요?')){ try{ localStorage.removeItem(KEY); }catch(e){} openHist(); } };
   $('hc').onclick=()=>copyLog(log);
+  document.querySelectorAll('.del').forEach(b=>b.onclick=()=>{
+    if(drive&&String(drive.id)===b.dataset.id){ alert('측정 중인 운행은 삭제할 수 없어요. 종료한 뒤 삭제해 주세요.'); return; }
+    if(confirm('이 운행 기록을 삭제할까요?')){
+      try{ localStorage.setItem(KEY,JSON.stringify(loadLog().filter(x=>String(x.id)!==b.dataset.id))); }catch(e){}
+      openHist();
+    }
+  });
 }
 function alertUser(kind,lvl){
   const now=Date.now();
