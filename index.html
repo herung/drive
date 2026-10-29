@@ -40,7 +40,7 @@ button:focus-visible{outline:3px solid var(--fg);outline-offset:2px}
 .dr{margin-top:8px;font-size:16px}
 .dr summary{cursor:pointer;color:var(--mute);padding:6px 0}
 .el{margin-top:8px}
-.er{display:grid;grid-template-columns:1.1fr 1.3fr .8fr 1.6fr;gap:4px;font-size:14px;padding:3px 0;border-bottom:1px solid var(--line)}
+.er{display:grid;grid-template-columns:1fr 1.2fr 1.2fr 1.4fr;gap:4px;font-size:14px;padding:3px 0;border-bottom:1px solid var(--line)}
 .er.hd{color:var(--mute)}
 .note{font-size:16px;color:var(--mute);text-align:center;margin:10px 0 0;line-height:1.35}
 </style>
@@ -51,9 +51,9 @@ button:focus-visible{outline:3px solid var(--fg);outline-offset:2px}
 <div class="speed"><b id="v">0</b><span>km/h</span></div>
 <div class="msg" id="msg">시작을 누르세요</div>
 <div class="gauge"><div class="fill" id="fill"></div><div class="mid"></div>
-<div class="lim" id="limB" style="left:calc(50% - 8.5 / 14 * 50% - 1px)"></div>
-<div class="lim" id="limA" style="left:calc(50% + 7.5 / 14 * 50% - 1px)"></div></div>
-<div class="scale"><span id="lbB">감속 −8.5</span><span id="acc"></span><span id="lbA">가속 +7.5</span></div>
+<div class="lim" id="limB" style="left:calc(50% - 9 / 14 * 50% - 1px)"></div>
+<div class="lim" id="limA" style="left:calc(50% + 8 / 14 * 50% - 1px)"></div></div>
+<div class="scale"><span id="lbB">감속 −9</span><span id="acc"></span><span id="lbA">가속 +8</span></div>
 <div class="row"><span>소리 알림 <input type="checkbox" id="snd" checked></span><span id="gps">GPS 대기</span></div>
 <button id="btn">시작</button>
 <button id="hbtn" class="ghost">기록 보기</button>
@@ -102,9 +102,9 @@ function saveDrive(){
     localStorage.setItem(KEY,JSON.stringify(log));
   }catch(e){}
 }
-function rec(l,n,v,a,acc){
+function rec(l,n,v,a,acc,lim){
   if(!drive||drive.events.length>=500) return;
-  drive.events.push({t:Date.now(),n:n,l:l,v:Math.round(v*10)/10,a:Math.round(a*10)/10,acc:Math.round(acc)});
+  drive.events.push({t:Date.now(),n:n,l:l,v:Math.round(v*10)/10,a:Math.round(a*10)/10,acc:Math.round(acc),lim:lim});
   saveDrive();
 }
 function warmTick(){
@@ -125,15 +125,15 @@ const fmtT=ms=>new Date(ms).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2
 const dayKey=ms=>{ const d=new Date(ms); return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate(); };
 function cellsHTML(c){ return TYPES.map(k=>'<div class="c"><span>'+k+'</span><span><b style="color:var(--brk)">'+c[k][0]+'</b> / <b style="color:var(--acc)">'+c[k][1]+'</b></span></div>').join(''); }
 function copyLog(log){
-  const txt=log.map(d=>'['+new Date(d.start).toLocaleDateString('ko-KR')+' '+fmtT(d.start)+'~'+fmtT(d.end)+' '+d.km+'km]\n'+d.events.map(e=>new Date(e.t).toLocaleTimeString('ko-KR',{hour12:false})+' '+e.n+' '+(e.l==='d'?'위반':'경고')+' 속도'+e.v+' 가속도'+e.a+' GPS오차'+e.acc+'m').join('\n')).join('\n\n');
+  const txt=log.map(d=>'['+new Date(d.start).toLocaleDateString('ko-KR')+' '+fmtT(d.start)+'~'+fmtT(d.end)+' '+d.km+'km]\n'+d.events.map(e=>new Date(e.t).toLocaleTimeString('ko-KR',{hour12:false})+' '+e.n+' '+(e.l==='d'?'위반':'경고')+' 속도'+e.v+' 가속도'+e.a+'(기준'+(e.lim==null?'-':e.lim)+') GPS오차'+e.acc+'m').join('\n')).join('\n\n');
   const ta=$('hta');
   navigator.clipboard.writeText(txt).then(()=>{ $('hc').textContent='복사됨'; }).catch(()=>{ ta.style.display='block'; ta.value=txt; ta.select(); });
 }
 const fmtS=ms=>new Date(ms).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
 function driveHTML(d){
   const nd=TYPES.reduce((s,t)=>s+d.cnt[t][0],0), nw=TYPES.reduce((s,t)=>s+d.cnt[t][1],0);
-  const rows=d.events.map(e=>'<div class="er"><span>'+fmtS(e.t)+'</span><span style="color:var(--'+(e.l==='d'?'brk':'acc')+')">'+e.n+(e.l==='d'?' 위반':' 경고')+'</span><span>'+(e.a>0?'+':'')+e.a+'</span><span>'+e.v+'km/h · ±'+e.acc+'m</span></div>').join('')||'<div>이벤트 없음</div>';
-  return '<details class="dr"><summary>'+fmtT(d.start)+'~'+fmtT(d.end)+' · '+d.km+'km · 위반 '+nd+' · 경고 '+nw+'</summary><div class="evg">'+cellsHTML(d.cnt)+'</div><div class="el"><div class="er hd"><span>시각</span><span>유형</span><span>가속도</span><span>속도·GPS오차</span></div>'+rows+'</div><button class="ghost del" data-id="'+d.id+'">이 운행 삭제</button></details>';
+  const rows=d.events.map(e=>'<div class="er"><span>'+fmtS(e.t)+'</span><span style="color:var(--'+(e.l==='d'?'brk':'acc')+')">'+e.n+(e.l==='d'?' 위반':' 경고')+'</span><span style="color:var(--'+(e.l==='d'?'brk':'acc')+')">'+(e.a>0?'+':'')+e.a+' / '+(e.lim==null?'-':((e.n==='급감속'||e.n==='급정지')?'-':'+')+e.lim)+'</span><span>'+e.v+'km/h · ±'+e.acc+'m</span></div>').join('')||'<div>이벤트 없음</div>';
+  return '<details class="dr"><summary>'+fmtT(d.start)+'~'+fmtT(d.end)+' · '+d.km+'km · 위반 '+nd+' · 경고 '+nw+'</summary><div class="evg">'+cellsHTML(d.cnt)+'</div><div class="el"><div class="er hd"><span>시각</span><span>유형</span><span>가속도/기준</span><span>속도·GPS오차</span></div>'+rows+'</div><button class="ghost del" data-id="'+d.id+'">이 운행 삭제</button></details>';
 }
 function openHist(){
   const log=loadLog().sort((a,b)=>b.start-a.start);
@@ -184,10 +184,10 @@ function onPos(p){
   let v=speedOf(p,prev&&{lat:prev.lat,lon:prev.lon,t:prev.t});
   if(v==null) return;
   // 가벼운 평활화로 GPS 잡음 줄이기
-  if(lastKmh!=null) v=lastKmh*0.3+v*0.7;
+  const raw=v; if(lastKmh!=null) v=lastKmh*0.3+v*0.7;
   lastKmh=v;
   if(active&&prev) km+=v*((t-prev.t)/3600000);
-  hist.push({t,v,lat:p.coords.latitude,lon:p.coords.longitude});
+  hist.push({t,v,r:raw,lat:p.coords.latitude,lon:p.coords.longitude});
   hist=hist.filter(h=>t-h.t<5000);
   $('v').textContent=Math.round(v);
   $('gps').textContent='GPS ±'+Math.round(p.coords.accuracy)+'m';
@@ -195,18 +195,24 @@ function onPos(p){
   // 약 1초 전 기록과 비교해 초당 속도 변화 계산
   const ref=[...hist].reverse().find(h=>t-h.t>=900);
   if(!ref) return;
-  const a=(v-ref.v)/((t-ref.t)/1000);
-  show(a,v,ref.v,p.coords.accuracy);
+  const dt=(t-ref.t)/1000;
+  const a=(v-ref.v)/dt;
+  const aR=(raw-(ref.r!=null?ref.r:ref.v))/dt;
+  show(a,v,ref.v,p.coords.accuracy,aR,raw);
 }
 function limits(v,v0){
   // 가속 기준: 출발(직전 5km/h 이하)은 8, 이후 현재 속도 구간별
   let la, ta='급가속';
-  if(v0<=5){ la=7.5; ta='급출발'; }
-  else if(v<11) la=7.5; else if(v<21) la=6.5; else la=5.5;
-  const lb = v<=30?8.5 : v<=50?9.5 : 11.5;
+  if(v0<=5){ la=8; ta='급출발'; }
+  else if(v<11) la=8; else if(v<21) la=7; else la=6;
+  const lb = v<=30?9 : v<=50?10 : 12;
   return {la,lb,ta};
 }
-function show(a,v,v0,acc){
+function show(a,v,v0,acc,aR,raw){
+  // 감속은 보정 없는 원래 GPS 속도로 판정(반응이 빠름), 가속은 보정된 속도로 판정
+  if(aR<0){ a=aR; v=raw; }
+  // 물리적으로 불가능한 값(GPS 튀김)은 무시
+  if(a>15||a<-40) return;
   const {la,lb,ta}=limits(v,v0);
   const an=(a>0?'+':'')+a.toFixed(1);
   const pct=Math.min(Math.abs(a),MAX)/MAX*50;
@@ -220,11 +226,11 @@ function show(a,v,v0,acc){
     const stopping=v<=5;
     if(stopping||v>=6){
       kind='b'; name=stopping?'급정지':'급감속';
-      const lim=stopping?8.5:lb;
+      const lim=stopping?9:lb;
       if(-a>=lim) lvl='d'; else if(-a>=lim-1) lvl='w';
     }
   }
-  const lbShow=v<=5?8.5:lb;
+  const lbShow=v<=5?9:lb;
   $('limA').style.left='calc(50% + '+la+' / '+MAX+' * 50% - 1px)';
   $('limB').style.left='calc(50% - '+lbShow+' / '+MAX+' * 50% - 1px)';
   $('lbA').textContent='가속 +'+la; $('lbB').textContent='감속 −'+lbShow;
@@ -232,8 +238,8 @@ function show(a,v,v0,acc){
   document.body.className=lvl==='ok'?'':lvl;
   $('msg').textContent=lvl==='d'?name+'! '+an:lvl==='w'?(kind==='a'?'가속 주의 ':'감속 주의 ')+an:an+' km/h/초';
   const danger=lvl==='d';
-  if(danger&&!prevDanger){ cnt[name][0]++; updEv(); rec('d',name,v,a,acc); }
-  if(lvl==='w'&&prevLvl==='ok'){ cnt[name][1]++; updEv(); rec('w',name,v,a,acc); }
+  if(danger&&!prevDanger){ cnt[name][0]++; updEv(); rec('d',name,v,a,acc,kind==='a'?la:lbShow); }
+  if(lvl==='w'&&prevLvl==='ok'){ cnt[name][1]++; updEv(); rec('w',name,v,a,acc,kind==='a'?la:lbShow); }
   prevLvl=lvl;
   prevDanger=danger;
   if(lvl!=='ok') alertUser(kind,lvl);
