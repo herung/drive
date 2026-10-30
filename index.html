@@ -40,7 +40,7 @@ button:focus-visible{outline:3px solid var(--fg);outline-offset:2px}
 .dr{margin-top:8px;font-size:16px}
 .dr summary{cursor:pointer;color:var(--mute);padding:6px 0}
 .el{margin-top:8px}
-.er{display:grid;grid-template-columns:1fr 1.2fr 1.2fr 1.4fr;gap:4px;font-size:14px;padding:3px 0;border-bottom:1px solid var(--line)}
+.er{display:grid;grid-template-columns:1.15fr 1.25fr .85fr .7fr 1.35fr;gap:4px;font-size:13px;padding:3px 0;border-bottom:1px solid var(--line)}
 .er.hd{color:var(--mute)}
 .note{font-size:16px;color:var(--mute);text-align:center;margin:10px 0 0;line-height:1.35}
 </style>
@@ -132,8 +132,8 @@ function copyLog(log){
 const fmtS=ms=>new Date(ms).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
 function driveHTML(d){
   const nd=TYPES.reduce((s,t)=>s+d.cnt[t][0],0), nw=TYPES.reduce((s,t)=>s+d.cnt[t][1],0);
-  const rows=d.events.map(e=>'<div class="er"><span>'+fmtS(e.t)+'</span><span style="color:var(--'+(e.l==='d'?'brk':'acc')+')">'+e.n+(e.l==='d'?' 위반':' 경고')+'</span><span style="color:var(--'+(e.l==='d'?'brk':'acc')+')">'+(e.a>0?'+':'')+e.a+' / '+(e.lim==null?'-':((e.n==='급감속'||e.n==='급정지')?'-':'+')+e.lim)+'</span><span>'+e.v+'km/h · ±'+e.acc+'m</span></div>').join('')||'<div>이벤트 없음</div>';
-  return '<details class="dr"><summary>'+fmtT(d.start)+'~'+fmtT(d.end)+' · '+d.km+'km · 위반 '+nd+' · 경고 '+nw+'</summary><div class="evg">'+cellsHTML(d.cnt)+'</div><div class="el"><div class="er hd"><span>시각</span><span>유형</span><span>가속도/기준</span><span>속도·GPS오차</span></div>'+rows+'</div><button class="ghost del" data-id="'+d.id+'">이 운행 삭제</button></details>';
+  const rows=d.events.map(e=>'<div class="er"><span>'+fmtS(e.t)+'</span><span style="color:var(--'+(e.l==='d'?'brk':'acc')+')">'+e.n+(e.l==='d'?' 위반':' 경고')+'</span><span style="color:var(--'+(e.l==='d'?'brk':'acc')+')">'+(e.a>0?'+':'')+e.a+'</span><span>'+(e.lim==null?'-':((e.n==='급감속'||e.n==='급정지')?'-':'+')+e.lim)+'</span><span>'+e.v+'km/h · ±'+e.acc+'m</span></div>').join('')||'<div>이벤트 없음</div>';
+  return '<details class="dr"><summary>'+fmtT(d.start)+'~'+fmtT(d.end)+' · '+d.km+'km · 위반 '+nd+' · 경고 '+nw+'</summary><div style="color:var(--mute);font-size:15px;margin-bottom:6px">최대 가속 '+(d.maxA!=null?'+'+d.maxA.toFixed(1):'-')+' · 최대 감속 '+(d.minA!=null?d.minA.toFixed(1):'-')+' (km/h/초)</div><div class="evg">'+cellsHTML(d.cnt)+'</div><div class="el"><div class="er hd"><span>시각</span><span>유형</span><span>가속도</span><span>기준</span><span>속도·GPS오차</span></div>'+rows+'</div><button class="ghost del" data-id="'+d.id+'">이 운행 삭제</button></details>';
 }
 function openHist(){
   const log=loadLog().sort((a,b)=>b.start-a.start);
@@ -193,12 +193,15 @@ function onPos(p){
   $('gps').textContent='GPS ±'+Math.round(p.coords.accuracy)+'m';
   if(!active) return;
   // 약 1초 전 기록과 비교해 초당 속도 변화 계산
-  const ref=[...hist].reverse().find(h=>t-h.t>=900);
+  // 약 1초 전에 가장 가까운 기록(0.5~1.8초 범위)과 비교
+  let ref=null, best=1e9;
+  hist.slice(0,-1).forEach(h=>{ const d=t-h.t; if(d>=500&&d<=1800&&Math.abs(d-1000)<best){ best=Math.abs(d-1000); ref=h; } });
   if(!ref) return;
-  const dt=(t-ref.t)/1000;
-  const a=(v-ref.v)/dt;
-  const aR=(raw-(ref.r!=null?ref.r:ref.v))/dt;
-  show(a,v,ref.v,p.coords.accuracy,aR,raw);
+  let a=(raw-ref.r)/((t-ref.t)/1000), refR=ref.r;
+  // 직전 값과의 변화도 확인해 더 큰 쪽을 사용(놓치지 않도록)
+  const ps=hist[hist.length-2];
+  if(ps&&t-ps.t>=600){ const a2=(raw-ps.r)/((t-ps.t)/1000); if(Math.abs(a2)>Math.abs(a)){ a=a2; refR=ps.r; } }
+  show(a,raw,refR,p.coords.accuracy,a,raw);
 }
 function limits(v,v0){
   // 가속 기준: 출발(직전 5km/h 이하)은 8, 이후 현재 속도 구간별
@@ -213,6 +216,7 @@ function show(a,v,v0,acc,aR,raw){
   if(aR<0){ a=aR; v=raw; }
   // 물리적으로 불가능한 값(GPS 튀김)은 무시
   if(a>15||a<-40) return;
+  if(drive){ if(drive.maxA==null||a>drive.maxA) drive.maxA=a; if(drive.minA==null||a<drive.minA) drive.minA=a; }
   const {la,lb,ta}=limits(v,v0);
   const an=(a>0?'+':'')+a.toFixed(1);
   const pct=Math.min(Math.abs(a),MAX)/MAX*50;
