@@ -125,7 +125,7 @@ const fmtT=ms=>new Date(ms).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2
 const dayKey=ms=>{ const d=new Date(ms); return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate(); };
 function cellsHTML(c){ return TYPES.map(k=>'<div class="c"><span>'+k+'</span><span><b style="color:var(--brk)">'+c[k][0]+'</b> / <b style="color:var(--acc)">'+c[k][1]+'</b></span></div>').join(''); }
 function copyLog(log){
-  const txt=log.map(d=>'['+new Date(d.start).toLocaleDateString('ko-KR')+' '+fmtT(d.start)+'~'+fmtT(d.end)+' '+d.km+'km]\n'+d.events.map(e=>new Date(e.t).toLocaleTimeString('ko-KR',{hour12:false})+' '+e.n+' '+(e.l==='d'?'위반':'경고')+' 속도'+e.v+' 가속도'+e.a+'(기준'+(e.lim==null?'-':e.lim)+') GPS오차'+e.acc+'m').join('\n')).join('\n\n');
+  const txt=log.map(d=>'['+new Date(d.start).toLocaleDateString('ko-KR')+' '+fmtT(d.start)+'~'+fmtT(d.end)+' '+d.km+'km 최대가속 '+(d.maxA!=null?d.maxA.toFixed(1):'-')+' 최대감속 '+(d.minA!=null?d.minA.toFixed(1):'-')+']\n'+d.events.map(e=>new Date(e.t).toLocaleTimeString('ko-KR',{hour12:false})+' '+e.n+' '+(e.l==='d'?'위반':'경고')+' 속도'+e.v+' 가속도'+e.a+'(기준'+(e.lim==null?'-':e.lim)+') GPS오차'+e.acc+'m').join('\n')).join('\n\n');
   const ta=$('hta');
   navigator.clipboard.writeText(txt).then(()=>{ $('hc').textContent='복사됨'; }).catch(()=>{ ta.style.display='block'; ta.value=txt; ta.select(); });
 }
@@ -182,6 +182,8 @@ function onPos(p){
   if(!warmAt){ warmAt=Date.now(); warmTimer=setInterval(warmTick,250); }
   const t=p.timestamp, prev=hist[hist.length-1];
   let v=speedOf(p,prev&&{lat:prev.lat,lon:prev.lon,t:prev.t});
+  // GPS 오차가 30m를 넘으면 신호 불량으로 보고 이 값은 쓰지 않음
+  if(p.coords.accuracy>30){ $('gps').textContent='GPS ±'+Math.round(p.coords.accuracy)+'m (신호 약함)'; if(active) $('msg').textContent='GPS 신호 약함'; return; }
   if(v==null) return;
   // 가벼운 평활화로 GPS 잡음 줄이기
   const raw=v; if(lastKmh!=null) v=lastKmh*0.3+v*0.7;
@@ -201,6 +203,12 @@ function onPos(p){
   // 직전 값과의 변화도 확인해 더 큰 쪽을 사용(놓치지 않도록)
   const ps=hist[hist.length-2];
   if(ps&&t-ps.t>=600){ const a2=(raw-ps.r)/((t-ps.t)/1000); if(Math.abs(a2)>Math.abs(a)){ a=a2; refR=ps.r; } }
+  // 정지 상태(5km/h 이하)에서 출발할 때는 GPS가 0에서 튀는 영향을 줄이려고 2초 구간으로 계산
+  if(a>0){
+    let r2=null, b2=1e9;
+    hist.slice(0,-1).forEach(h=>{ const d=t-h.t; if(d>=1500&&d<=2600&&Math.abs(d-2000)<b2){ b2=Math.abs(d-2000); r2=h; } });
+    if(r2&&r2.r<=5){ a=(raw-r2.r)/((t-r2.t)/1000); refR=r2.r; }
+  }
   show(a,raw,refR,p.coords.accuracy,a,raw);
 }
 function limits(v,v0){
@@ -215,7 +223,7 @@ function show(a,v,v0,acc,aR,raw){
   // 감속은 보정 없는 원래 GPS 속도로 판정(반응이 빠름), 가속은 보정된 속도로 판정
   if(aR<0){ a=aR; v=raw; }
   // 물리적으로 불가능한 값(GPS 튀김)은 무시
-  if(a>15||a<-40) return;
+  if(a>15||a<-30) return;
   if(drive){ if(drive.maxA==null||a>drive.maxA) drive.maxA=a; if(drive.minA==null||a<drive.minA) drive.minA=a; }
   const {la,lb,ta}=limits(v,v0);
   const an=(a>0?'+':'')+a.toFixed(1);
