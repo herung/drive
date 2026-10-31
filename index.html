@@ -102,9 +102,9 @@ function saveDrive(){
     localStorage.setItem(KEY,JSON.stringify(log));
   }catch(e){}
 }
-function rec(l,n,v,a,acc,lim){
+function rec(l,n,v,a,acc,lim,turn){
   if(!drive||drive.events.length>=500) return;
-  drive.events.push({t:Date.now(),n:n,l:l,v:Math.round(v*10)/10,a:Math.round(a*10)/10,acc:Math.round(acc),lim:lim});
+  drive.events.push({t:Date.now(),n:n,l:l,v:Math.round(v*10)/10,a:Math.round(a*10)/10,acc:Math.round(acc),lim:Math.round(lim*10)/10,tn:Math.round(turn||0)});
   saveDrive();
 }
 function warmTick(){
@@ -125,14 +125,14 @@ const fmtT=ms=>new Date(ms).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2
 const dayKey=ms=>{ const d=new Date(ms); return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate(); };
 function cellsHTML(c){ return TYPES.map(k=>'<div class="c"><span>'+k+'</span><span><b style="color:var(--brk)">'+c[k][0]+'</b> / <b style="color:var(--acc)">'+c[k][1]+'</b></span></div>').join(''); }
 function copyLog(log){
-  const txt=log.map(d=>'['+new Date(d.start).toLocaleDateString('ko-KR')+' '+fmtT(d.start)+'~'+fmtT(d.end)+' '+d.km+'km 최대가속 '+(d.maxA!=null?d.maxA.toFixed(1):'-')+' 최대감속 '+(d.minA!=null?d.minA.toFixed(1):'-')+']\n'+d.events.map(e=>new Date(e.t).toLocaleTimeString('ko-KR',{hour12:false})+' '+e.n+' '+(e.l==='d'?'위반':'경고')+' 속도'+e.v+' 가속도'+e.a+'(기준'+(e.lim==null?'-':e.lim)+') GPS오차'+e.acc+'m').join('\n')).join('\n\n');
+  const txt=log.map(d=>'['+new Date(d.start).toLocaleDateString('ko-KR')+' '+fmtT(d.start)+'~'+fmtT(d.end)+' '+d.km+'km 최대가속 '+(d.maxA!=null?d.maxA.toFixed(1):'-')+' 최대감속 '+(d.minA!=null?d.minA.toFixed(1):'-')+']\n'+d.events.map(e=>new Date(e.t).toLocaleTimeString('ko-KR',{hour12:false})+' '+e.n+' '+(e.l==='d'?'위반':'경고')+' 속도'+e.v+' 가속도'+e.a+'(기준'+(e.lim==null?'-':e.lim)+') GPS오차'+e.acc+'m 회전'+(e.tn||0)+'도/초').join('\n')).join('\n\n');
   const ta=$('hta');
   navigator.clipboard.writeText(txt).then(()=>{ $('hc').textContent='복사됨'; }).catch(()=>{ ta.style.display='block'; ta.value=txt; ta.select(); });
 }
 const fmtS=ms=>new Date(ms).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
 function driveHTML(d){
   const nd=TYPES.reduce((s,t)=>s+d.cnt[t][0],0), nw=TYPES.reduce((s,t)=>s+d.cnt[t][1],0);
-  const rows=d.events.map(e=>'<div class="er"><span>'+fmtS(e.t)+'</span><span style="color:var(--'+(e.l==='d'?'brk':'acc')+')">'+e.n+(e.l==='d'?' 위반':' 경고')+'</span><span style="color:var(--'+(e.l==='d'?'brk':'acc')+')">'+(e.a>0?'+':'')+e.a+'</span><span>'+(e.lim==null?'-':((e.n==='급감속'||e.n==='급정지')?'-':'+')+e.lim)+'</span><span>'+e.v+'km/h · ±'+e.acc+'m</span></div>').join('')||'<div>이벤트 없음</div>';
+  const rows=d.events.map(e=>'<div class="er"><span>'+fmtS(e.t)+'</span><span style="color:var(--'+(e.l==='d'?'brk':'acc')+')">'+e.n+(e.l==='d'?' 위반':' 경고')+'</span><span style="color:var(--'+(e.l==='d'?'brk':'acc')+')">'+(e.a>0?'+':'')+e.a+'</span><span>'+(e.lim==null?'-':((e.n==='급감속'||e.n==='급정지')?'-':'+')+e.lim)+'</span><span>'+e.v+'km/h · ±'+e.acc+'m'+(e.tn?' · 회전'+e.tn+'°/초':'')+'</span></div>').join('')||'<div>이벤트 없음</div>';
   return '<details class="dr"><summary>'+fmtT(d.start)+'~'+fmtT(d.end)+' · '+d.km+'km · 위반 '+nd+' · 경고 '+nw+'</summary><div style="color:var(--mute);font-size:15px;margin-bottom:6px">최대 가속 '+(d.maxA!=null?'+'+d.maxA.toFixed(1):'-')+' · 최대 감속 '+(d.minA!=null?d.minA.toFixed(1):'-')+' (km/h/초)</div><div class="evg">'+cellsHTML(d.cnt)+'</div><div class="el"><div class="er hd"><span>시각</span><span>유형</span><span>가속도</span><span>기준</span><span>속도·GPS오차</span></div>'+rows+'</div><button class="ghost del" data-id="'+d.id+'">이 운행 삭제</button></details>';
 }
 function openHist(){
@@ -183,13 +183,13 @@ function onPos(p){
   const t=p.timestamp, prev=hist[hist.length-1];
   let v=speedOf(p,prev&&{lat:prev.lat,lon:prev.lon,t:prev.t});
   // GPS 오차가 30m를 넘으면 신호 불량으로 보고 이 값은 쓰지 않음
-  if(p.coords.accuracy>30){ $('gps').textContent='GPS ±'+Math.round(p.coords.accuracy)+'m (신호 약함)'; if(active) $('msg').textContent='GPS 신호 약함'; return; }
+  if(p.coords.accuracy>15){ $('gps').textContent='GPS ±'+Math.round(p.coords.accuracy)+'m (신호 약함)'; if(active) $('msg').textContent='GPS 신호 약함'; return; }
   if(v==null) return;
   // 가벼운 평활화로 GPS 잡음 줄이기
   const raw=v; if(lastKmh!=null) v=lastKmh*0.3+v*0.7;
   lastKmh=v;
   if(active&&prev) km+=v*((t-prev.t)/3600000);
-  hist.push({t,v,r:raw,lat:p.coords.latitude,lon:p.coords.longitude});
+  hist.push({t,v,r:raw,h:p.coords.heading,lat:p.coords.latitude,lon:p.coords.longitude});
   hist=hist.filter(h=>t-h.t<5000);
   $('v').textContent=Math.round(v);
   $('gps').textContent='GPS ±'+Math.round(p.coords.accuracy)+'m';
@@ -209,7 +209,10 @@ function onPos(p){
     hist.slice(0,-1).forEach(h=>{ const d=t-h.t; if(d>=1500&&d<=2600&&Math.abs(d-2000)<b2){ b2=Math.abs(d-2000); r2=h; } });
     if(r2&&r2.r<=5){ a=(raw-r2.r)/((t-r2.t)/1000); refR=r2.r; }
   }
-  show(a,raw,refR,p.coords.accuracy,a,raw);
+  // 회전 정도(초당 방향 변화 각도) 계산: 커브에서는 GPS 속도가 더 흔들리므로 기준을 조금 완화
+  let turn=0;
+  if(p.coords.heading!=null&&ref.h!=null&&!isNaN(p.coords.heading)&&!isNaN(ref.h)){ let d=Math.abs(p.coords.heading-ref.h)%360; if(d>180) d=360-d; turn=d/((t-ref.t)/1000); }
+  show(a,raw,refR,p.coords.accuracy,a,raw,turn);
 }
 function limits(v,v0){
   // 가속 기준: 출발(직전 5km/h 이하)은 8, 이후 현재 속도 구간별
@@ -219,13 +222,16 @@ function limits(v,v0){
   const lb = v<=30?9 : v<=50?10 : 12;
   return {la,lb,ta};
 }
-function show(a,v,v0,acc,aR,raw){
+function show(a,v,v0,acc,aR,raw,turn){
   // 감속은 보정 없는 원래 GPS 속도로 판정(반응이 빠름), 가속은 보정된 속도로 판정
   if(aR<0){ a=aR; v=raw; }
   // 물리적으로 불가능한 값(GPS 튀김)은 무시
-  if(a>15||a<-30) return;
+  // 버스가 낼 수 있는 범위를 넘는 값(가속 +11, 감속 -25 초과)은 GPS 오류로 보고 무시
+  if(a>11||a<-25) return;
   if(drive){ if(drive.maxA==null||a>drive.maxA) drive.maxA=a; if(drive.minA==null||a<drive.minA) drive.minA=a; }
-  const {la,lb,ta}=limits(v,v0);
+  let {la,lb,ta}=limits(v,v0);
+  const pen=Math.min(2,(turn||0)/10); // 초당 10도 회전당 기준 +1, 최대 +2
+  la+=pen; lb+=pen;
   const an=(a>0?'+':'')+a.toFixed(1);
   const pct=Math.min(Math.abs(a),MAX)/MAX*50;
   const f=$('fill');
@@ -238,11 +244,11 @@ function show(a,v,v0,acc,aR,raw){
     const stopping=v<=5;
     if(stopping||v>=6){
       kind='b'; name=stopping?'급정지':'급감속';
-      const lim=stopping?9:lb;
+      const lim=stopping?9+pen:lb;
       if(-a>=lim) lvl='d'; else if(-a>=lim-1) lvl='w';
     }
   }
-  const lbShow=v<=5?9:lb;
+  const lbShow=v<=5?9+pen:lb;
   $('limA').style.left='calc(50% + '+la+' / '+MAX+' * 50% - 1px)';
   $('limB').style.left='calc(50% - '+lbShow+' / '+MAX+' * 50% - 1px)';
   $('lbA').textContent='가속 +'+la; $('lbB').textContent='감속 −'+lbShow;
@@ -250,8 +256,8 @@ function show(a,v,v0,acc,aR,raw){
   document.body.className=lvl==='ok'?'':lvl;
   $('msg').textContent=lvl==='d'?name+'! '+an:lvl==='w'?(kind==='a'?'가속 주의 ':'감속 주의 ')+an:an+' km/h/초';
   const danger=lvl==='d';
-  if(danger&&!prevDanger){ cnt[name][0]++; updEv(); rec('d',name,v,a,acc,kind==='a'?la:lbShow); }
-  if(lvl==='w'&&prevLvl==='ok'){ cnt[name][1]++; updEv(); rec('w',name,v,a,acc,kind==='a'?la:lbShow); }
+  if(danger&&!prevDanger){ cnt[name][0]++; updEv(); rec('d',name,v,a,acc,kind==='a'?la:lbShow,turn); }
+  if(lvl==='w'&&prevLvl==='ok'){ cnt[name][1]++; updEv(); rec('w',name,v,a,acc,kind==='a'?la:lbShow,turn); }
   prevLvl=lvl;
   prevDanger=danger;
   if(lvl!=='ok') alertUser(kind,lvl);
