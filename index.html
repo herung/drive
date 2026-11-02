@@ -40,7 +40,7 @@ button:focus-visible{outline:3px solid var(--fg);outline-offset:2px}
 .dr{margin-top:8px;font-size:16px}
 .dr summary{cursor:pointer;color:var(--mute);padding:6px 0}
 .el{margin-top:8px}
-.er{display:grid;grid-template-columns:52px 68px 40px 36px minmax(0,1fr);gap:3px;font-size:15px;padding:4px 0;border-bottom:1px solid var(--line)}
+.er{display:grid;grid-template-columns:52px 78px 40px 36px minmax(0,1fr);gap:3px;font-size:15px;padding:4px 0;border-bottom:1px solid var(--line)}
 .er.hd{color:var(--mute)}
 .er span:nth-child(-n+4){white-space:nowrap}
 .note{font-size:16px;color:var(--mute);text-align:center;margin:10px 0 0;line-height:1.35}
@@ -126,14 +126,21 @@ const fmtT=ms=>new Date(ms).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2
 const dayKey=ms=>{ const d=new Date(ms); return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate(); };
 function cellsHTML(c){ return TYPES.map(k=>'<div class="c"><span>'+k+'</span><span><b style="color:var(--brk)">'+c[k][0]+'</b> / <b style="color:var(--acc)">'+c[k][1]+'</b></span></div>').join(''); }
 function copyLog(log){
-  const txt=log.map(d=>'['+new Date(d.start).toLocaleDateString('ko-KR')+' '+fmtT(d.start)+'~'+fmtT(d.end)+' '+d.km+'km 최대가속 '+(d.maxA!=null?d.maxA.toFixed(1):'-')+' 최대감속 '+(d.minA!=null?d.minA.toFixed(1):'-')+']\n'+d.events.map(e=>new Date(e.t).toLocaleTimeString('ko-KR',{hour12:false})+' '+e.n+' '+(e.l==='d'?'위반':'경고')+' 속도'+e.v+' 가속도'+e.a+'(기준'+(e.lim==null?'-':e.lim)+') GPS오차'+e.acc+'m 회전'+(e.tn||0)+'도/초').join('\n')).join('\n\n');
+  const txt=log.map(d=>'['+new Date(d.start).toLocaleDateString('ko-KR')+' '+fmtT(d.start)+'~'+fmtT(d.end)+' '+d.km+'km 최대가속 '+(d.maxA!=null?d.maxA.toFixed(1):'-')+' 최대감속 '+(d.minA!=null?d.minA.toFixed(1):'-')+']\n'+d.events.map(e=>new Date(e.t).toLocaleTimeString('ko-KR',{hour12:false})+' '+e.n+' '+(e.l==='d'?'위반':'경고')+' 속도'+e.v+' 가속도'+e.a+'(기준'+(e.lim==null?'-':baseLim(e.n,e.v))+') GPS오차'+e.acc+'m 회전'+(e.tn||0)+'도/초').join('\n')).join('\n\n');
   const ta=$('hta');
   navigator.clipboard.writeText(txt).then(()=>{ $('hc').textContent='복사됨'; }).catch(()=>{ ta.style.display='block'; ta.value=txt; ta.select(); });
+}
+// 기록에 표시하는 기준은 회전 완화를 뺀 순수 위반 기준(정수)
+function baseLim(n,v){
+  if(n==='급출발') return 8;
+  if(n==='급가속') return v<11?8:v<21?7:6;
+  if(n==='급정지') return 9;
+  return v<=30?9:v<=50?10:12;
 }
 const fmtS=ms=>new Date(ms).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
 function driveHTML(d){
   const nd=TYPES.reduce((s,t)=>s+d.cnt[t][0],0), nw=TYPES.reduce((s,t)=>s+d.cnt[t][1],0);
-  const rows=d.events.map(e=>'<div class="er"><span>'+fmtS(e.t)+'</span><span style="color:var(--'+(e.l==='d'?'brk':'acc')+')">'+e.n+(e.l==='d'?' 위반':' 경고')+'</span><span style="color:var(--'+(e.l==='d'?'brk':'acc')+')">'+(e.a>0?'+':'')+e.a+'</span><span>'+(e.lim==null?'-':((e.n==='급감속'||e.n==='급정지')?'-':'+')+e.lim)+'</span><span>'+e.v+'km/h·±'+e.acc+'m'+(e.tn?'·회전'+e.tn+'°':'')+'</span></div>').join('')||'<div>이벤트 없음</div>';
+  const rows=d.events.map(e=>'<div class="er"><span>'+fmtS(e.t)+'</span><span style="color:var(--'+(e.l==='d'?'brk':'acc')+')">'+e.n+(e.l==='d'?' 위반':' 경고')+'</span><span style="color:var(--'+(e.l==='d'?'brk':'acc')+')">'+(e.a>0?'+':'')+e.a+'</span><span>'+(e.lim==null?'-':((e.n==='급감속'||e.n==='급정지')?'-':'+')+baseLim(e.n,e.v))+'</span><span>'+e.v+'km/h·±'+e.acc+'m'+(e.tn?'·회전'+e.tn+'°':'')+'</span></div>').join('')||'<div>이벤트 없음</div>';
   return '<details class="dr"><summary>'+fmtT(d.start)+'~'+fmtT(d.end)+' · '+d.km+'km · 위반 '+nd+' · 경고 '+nw+'</summary><div style="color:var(--mute);font-size:15px;margin-bottom:6px">최대 가속 '+(d.maxA!=null?'+'+d.maxA.toFixed(1):'-')+' · 최대 감속 '+(d.minA!=null?d.minA.toFixed(1):'-')+' (km/h/초)</div><div class="evg">'+cellsHTML(d.cnt)+'</div><div class="el"><div class="er hd"><span>시각</span><span>유형</span><span>가속도</span><span>기준</span><span>속도·GPS오차·회전</span></div>'+rows+'</div><button class="ghost del" data-id="'+d.id+'">이 운행 삭제</button></details>';
 }
 function openHist(){
