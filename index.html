@@ -234,12 +234,14 @@ function show(a,v,v0,acc,aR,raw,turn){
   // 감속은 보정 없는 원래 GPS 속도로 판정(반응이 빠름), 가속은 보정된 속도로 판정
   if(aR<0){ a=aR; v=raw; }
   // 물리적으로 불가능한 값(GPS 튀김)은 무시
-  // 버스가 낼 수 있는 범위를 넘는 값(가속 +11, 감속 -25 초과)은 GPS 오류로 보고 무시
-  if(a>11||a<-25) return;
+  // 버스가 낼 수 있는 범위를 넘는 값(가속 +11, 감속 -18 초과)은 GPS 오류로 보고 무시
+  if(a>11||a<-18) return;
   if(drive){ if(drive.maxA==null||a>drive.maxA) drive.maxA=a; if(drive.minA==null||a<drive.minA) drive.minA=a; }
   let {la,lb,ta}=limits(v,v0);
   const pen=Math.min(2,(turn||0)/10); // 초당 10도 회전당 기준 +1, 최대 +2
   la+=pen; lb+=pen;
+  // 주행 중 급가속은 버스가 낼 수 있는 수치(+9)를 넘으면 GPS 오류로 무시 (급출발은 2초 평균이라 제외)
+  if(a>9&&ta==='급가속') return;
   const an=(a>0?'+':'')+a.toFixed(1);
   const pct=Math.min(Math.abs(a),MAX)/MAX*50;
   const f=$('fill');
@@ -250,7 +252,7 @@ function show(a,v,v0,acc,aR,raw,turn){
     if(a>=la) lvl='d'; else if(a>=la-1) lvl='w';
   }else{
     const stopping=v<=5;
-    if(stopping||v>=6){
+    if(stopping||v>5){
       kind='b'; name=stopping?'급정지':'급감속';
       const lim=stopping?9+pen:lb;
       if(-a>=lim) lvl='d'; else if(-a>=lim-1) lvl='w';
