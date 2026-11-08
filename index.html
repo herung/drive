@@ -58,7 +58,7 @@ button:focus-visible{outline:3px solid var(--fg);outline-offset:2px}
 <div class="row"><span>소리 알림 <input type="checkbox" id="snd" checked></span><span id="gps">GPS 대기</span></div>
 <button id="btn">시작</button>
 <button id="hbtn" class="ghost">기록 보기</button>
-<div id="hist"></div><p id="diagStatus" class="note">진단 시험판 D1 · 전후 기록 자동 저장</p>
+<div id="hist"></div><p id="diagStatus" class="note">진단 시험판 D1-N · 전후 기록 자동 저장</p>
 <p class="note">화면을 켜 둔 채 거치대에 두고 사용하세요. 운전 중에는 화면을 보지 말고 소리로 확인하세요.</p>
 <script>
 const MAX=14;
@@ -94,7 +94,7 @@ function updEv(){
 let active=false, warmAt=0, warmTimer=null, saveTimer=null, drive=null, km=0;
 const KEY='drive_log_v1';
 // Diagnostics are observers only: no values below feed the driving classifier.
-const DIAG_VERSION='2026-11-08-D1';
+const DIAG_VERSION='2026-11-09-D1-N';
 let diag=null, sample=null, diagRing=[], diagDBPromise=null, diagLastEnded=null, diagPrunedAt=0;
 function diagStatus(message){$('diagStatus').textContent=message;}
 function diagDB(){
@@ -123,7 +123,7 @@ function diagSave(){
   if(!diag)return;
   diag.updatedAt=Date.now();
   const snapshot=JSON.parse(JSON.stringify(diag));
-  diagWrite(snapshot).then(()=>diagStatus('진단 D1 · 저장 완료 '+fmtT(snapshot.updatedAt)+(snapshot.droppedClips?' · 일부 구간은 저장 상한으로 생략':''))).catch(()=>diagStatus('진단 저장 실패 · 운행 종료 전 진단 파일을 내려받으세요.'));
+  diagWrite(snapshot).then(()=>diagStatus('진단 D1-N · 저장 완료 '+fmtT(snapshot.updatedAt)+(snapshot.droppedClips?' · 일부 구간은 저장 상한으로 생략':''))).catch(()=>diagStatus('진단 저장 실패 · 운행 종료 전 진단 파일을 내려받으세요.'));
 }
 function diagBegin(){
   diagRing=[];
@@ -225,9 +225,18 @@ function baseLim(n,v){
   return v<=30?9:v<=50?10:12;
 }
 const fmtS=ms=>new Date(ms).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+// Official Naver Maps marker deep link; Android uses an intent for app/store routing.
+function naverMapURL(e){
+  const params='lat='+encodeURIComponent(e.lat)+'&lng='+encodeURIComponent(e.lon)
+    +'&name='+encodeURIComponent(e.n+' '+(e.l==='d'?'위반':'경고')+' '+fmtS(e.t))
+    +'&appname='+encodeURIComponent(location.origin+location.pathname);
+  return /Android/i.test(navigator.userAgent||'')
+    ? 'intent://place?'+params+'#Intent;scheme=nmap;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;package=com.nhn.android.nmap;end'
+    : 'nmap://place?'+params;
+}
 function driveHTML(d){
   const nd=TYPES.reduce((s,t)=>s+d.cnt[t][0],0), nw=TYPES.reduce((s,t)=>s+d.cnt[t][1],0);
-  const rows=d.events.map(e=>'<div class="er"><span>'+fmtS(e.t)+'</span><span style="color:var(--'+(e.l==='d'?'brk':'acc')+')">'+e.n+(e.l==='d'?' 위반':' 경고')+'</span><span style="color:var(--'+(e.l==='d'?'brk':'acc')+')">'+(e.a>0?'+':'')+e.a+'</span><span>'+(e.lim==null?'-':((e.n==='급감속'||e.n==='급정지')?'-':'+')+baseLim(e.n,e.v))+'</span><span>'+e.v+'km/h·±'+e.acc+'m'+(e.tn?'·회전'+e.tn+'°':'')+(Number.isFinite(e.lat)&&Number.isFinite(e.lon)?' <a target="_blank" rel="noopener noreferrer" style="color:var(--ok)" href="https://map.kakao.com/link/map/'+encodeURIComponent(e.n)+','+e.lat+','+e.lon+'">지도</a>':'')+'</span></div>').join('')||'<div>이벤트 없음</div>';
+  const rows=d.events.map(e=>'<div class="er"><span>'+fmtS(e.t)+'</span><span style="color:var(--'+(e.l==='d'?'brk':'acc')+')">'+e.n+(e.l==='d'?' 위반':' 경고')+'</span><span style="color:var(--'+(e.l==='d'?'brk':'acc')+')">'+(e.a>0?'+':'')+e.a+'</span><span>'+(e.lim==null?'-':((e.n==='급감속'||e.n==='급정지')?'-':'+')+baseLim(e.n,e.v))+'</span><span>'+e.v+'km/h·±'+e.acc+'m'+(e.tn?'·회전'+e.tn+'°':'')+(Number.isFinite(e.lat)&&Number.isFinite(e.lon)?' <a rel="noopener noreferrer" style="color:var(--ok)" href="'+naverMapURL(e)+'">네이버지도</a>':'')+'</span></div>').join('')||'<div>이벤트 없음</div>';
   return '<details class="dr"><summary>'+fmtT(d.start)+'~'+fmtT(d.end)+' · '+d.km+'km · 위반 '+nd+' · 경고 '+nw+'</summary><div style="color:var(--mute);font-size:15px;margin-bottom:6px">최대 가속 '+(d.maxA!=null?'+'+d.maxA.toFixed(1):'-')+' · 최대 감속 '+(d.minA!=null?d.minA.toFixed(1):'-')+' (km/h/초)</div><div class="evg">'+cellsHTML(d.cnt)+'</div><div class="el"><div class="er hd"><span>시각</span><span>유형</span><span>가속도</span><span>기준</span><span>속도·GPS오차·회전</span></div>'+rows+'</div><button class="ghost diagcopy" data-id="'+d.id+'">진단 복사</button><button class="ghost diagfile" data-id="'+d.id+'">진단 파일 저장</button><button class="ghost del" data-id="'+d.id+'">이 운행 삭제</button></details>';
 }
 function openHist(){
