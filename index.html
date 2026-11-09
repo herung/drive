@@ -44,13 +44,18 @@ button:focus-visible{outline:3px solid var(--fg);outline-offset:2px}
 .er.hd{color:var(--mute)}
 .er span:nth-child(-n+4){white-space:nowrap}
 .note{font-size:16px;color:var(--mute);text-align:center;margin:10px 0 0;line-height:1.35}
+body.q{background:color-mix(in srgb,#548ac1 22%,var(--bg))}
+#quality{min-height:1.3em;color:#85b9ee;font-size:16px;text-align:center;margin:5px 0}
+#routePanel{position:fixed;inset:0;z-index:30;overflow:auto;padding:20px;background:var(--bg)}
+#routePanel[hidden]{display:none}#routePanel p{font-size:16px;line-height:1.5}#routePanel a{color:var(--ok)}
+.routeDot{cursor:pointer}.routeDot:focus{outline:2px solid white}
 </style>
 </head>
 <body>
 <div class="top"><span id="st">대기 중</span><span style="font-size:15px">빨강 위반 · 노랑 경고</span></div>
 <div id="ev" class="evg"><div class="c"><span>급가속</span><span><b style="color:var(--brk)">0</b> / <b style="color:var(--acc)">0</b></span></div><div class="c"><span>급출발</span><span><b style="color:var(--brk)">0</b> / <b style="color:var(--acc)">0</b></span></div><div class="c"><span>급감속</span><span><b style="color:var(--brk)">0</b> / <b style="color:var(--acc)">0</b></span></div><div class="c"><span>급정지</span><span><b style="color:var(--brk)">0</b> / <b style="color:var(--acc)">0</b></span></div></div>
 <div class="speed"><b id="v">0</b><span>km/h</span></div>
-<div class="msg" id="msg">시작을 누르세요</div>
+<div id="quality" role="status">D2 · 측정 대기</div><div class="msg" id="msg">시작을 누르세요</div>
 <div class="gauge"><div class="fill" id="fill"></div><div class="mid"></div>
 <div class="lim" id="limB" style="left:calc(50% - 9 / 14 * 50% - 1px)"></div>
 <div class="lim" id="limA" style="left:calc(50% + 8 / 14 * 50% - 1px)"></div></div>
@@ -58,7 +63,7 @@ button:focus-visible{outline:3px solid var(--fg);outline-offset:2px}
 <div class="row"><span>소리 알림 <input type="checkbox" id="snd" checked></span><span id="gps">GPS 대기</span></div>
 <button id="btn">시작</button>
 <button id="hbtn" class="ghost">기록 보기</button>
-<div id="hist"></div><p id="diagStatus" class="note">진단 시험판 D1-N · 전후 기록 자동 저장</p>
+<div id="hist"></div><section id="routePanel" hidden></section><p id="diagStatus" class="note">진단 시험판 D2 · 전후 기록 자동 저장</p>
 <p class="note">화면을 켜 둔 채 거치대에 두고 사용하세요. 운전 중에는 화면을 보지 말고 소리로 확인하세요.</p>
 <script>
 const MAX=14;
@@ -94,7 +99,7 @@ function updEv(){
 let active=false, warmAt=0, warmTimer=null, saveTimer=null, drive=null, km=0;
 const KEY='drive_log_v1';
 // Diagnostics are observers only: no values below feed the driving classifier.
-const DIAG_VERSION='2026-11-09-D1-N';
+const DIAG_VERSION='2026-11-09-D2';
 let diag=null, sample=null, diagRing=[], diagDBPromise=null, diagLastEnded=null, diagPrunedAt=0;
 function diagStatus(message){$('diagStatus').textContent=message;}
 function diagDB(){
@@ -123,17 +128,21 @@ function diagSave(){
   if(!diag)return;
   diag.updatedAt=Date.now();
   const snapshot=JSON.parse(JSON.stringify(diag));
-  diagWrite(snapshot).then(()=>diagStatus('진단 D1-N · 저장 완료 '+fmtT(snapshot.updatedAt)+(snapshot.droppedClips?' · 일부 구간은 저장 상한으로 생략':''))).catch(()=>diagStatus('진단 저장 실패 · 운행 종료 전 진단 파일을 내려받으세요.'));
+  diagWrite(snapshot).then(()=>diagStatus('진단 D2 · 저장 완료 '+fmtT(snapshot.updatedAt)+((snapshot.droppedClips||snapshot.droppedSamples||snapshot.droppedRoute||snapshot.droppedHolds)?' · 일부 기록은 저장 상한으로 생략':''))).catch(()=>diagStatus('진단 저장 실패 · 운행 종료 전 진단 파일을 내려받으세요.'));
 }
 function diagBegin(){
   diagRing=[];
-  diag={id:drive.id,start:drive.start,version:DIAG_VERSION,endedNormally:false,settings:{accuracyMaxM:15,referenceMs:[500,1800],previousMinMs:600,startReferenceMs:[1500,2600],startSpeedMax:5,smoothingOld:0.3,smoothingNew:0.7,accelRejectAbove:11,brakeRejectBelow:-18,movingAccelRejectAbove:9,turnDivisor:10,turnPenaltyMax:2,warningMargin:1,accelLimits:[8,7,6],brakeLimits:[9,10,12],preSeconds:8,postSeconds:5,routeIntervalSeconds:5,clipCap:300,routeCap:10000},clips:[],route:[],droppedClips:0,droppedRoute:0};
+  diag={id:drive.id,start:drive.start,version:DIAG_VERSION,endedNormally:false,settings:{accuracyMaxM:15,referenceMs:[500,1800],previousMinMs:600,startReferenceMs:[1500,2600],startSpeedMax:5,smoothingOld:0.3,smoothingNew:0.7,accelRejectAbove:11,brakeRejectBelow:-18,movingAccelRejectAbove:9,turnDivisor:10,turnPenaltyMax:2,warningMargin:1,accelLimits:[8,7,6],brakeLimits:[9,10,12],preSeconds:8,postSeconds:5,routeIntervalSeconds:5,clipCap:300,routeCap:10000,fullSampleCap:36000,missingSpeedPolicy:'hold_no_coordinate_fallback',extremePolicy:'hold_reset',recoveryMs:1800,gapMs:2500,warmupMinMs:5000,warmupSpanMs:2000,warmupMinSamples:3,warmupChangeLimit:6},sampleColumns:SAMPLE_COLUMNS,samples:[],droppedSamples:0,validSamples:0,heldSamples:0,holds:[],droppedHolds:0,warmupStartedAt:warmAt,clips:[],route:[],droppedClips:0,droppedRoute:0};
 }
 function diagFinish(s){
   if(!diag)return;
+  if(diag.samples.length<36000)diag.samples.push(SAMPLE_COLUMNS.map(k=>{
+    const v=s[k];return typeof v==='number'&&Number.isFinite(v)?(k==='gpsT'||k==='receivedAt'||k==='chosenRefT'?v:Math.round(v*1e6)/1e6):v??null;
+  }));else diag.droppedSamples++;
+  if(s.quality==='valid')diag.validSamples++;else diag.heldSamples++;
   diagRing.push(s);diagRing=diagRing.filter(x=>s.receivedAt-x.receivedAt<=8000).slice(-120);
   let last=diag.clips[diag.clips.length-1];
-  const candidate=!!s.event||s.acceleration>=4||s.acceleration<=-7||s.status.includes('제외');
+  const candidate=s.quality==='hold'||!!s.event||s.acceleration>=4||s.acceleration<=-7||s.status.includes('제외');
   if(last&&s.receivedAt<=last.until&&last.samples.length<120){
     last.samples.push(s);
     if(candidate)last.until=Math.min(last.startedAt+60000,s.receivedAt+5000);
@@ -144,7 +153,7 @@ function diagFinish(s){
   }
   const rp=diag.route[diag.route.length-1];
   if(!rp||s.receivedAt-rp.receivedAt>=5000){
-    if(diag.route.length<10000)diag.route.push({gpsT:s.gpsT,receivedAt:s.receivedAt,lat:s.lat,lon:s.lon,rawSpeed:s.rawSpeed,accuracy:s.accuracy,accepted:s.accuracy<=15&&s.rawSpeed!=null});
+    if(diag.route.length<10000)diag.route.push({gpsT:s.gpsT,receivedAt:s.receivedAt,lat:s.lat,lon:s.lon,rawSpeed:s.rawSpeed,accuracy:s.accuracy,accepted:s.quality==='valid',quality:s.quality,status:s.status});
     else diag.droppedRoute++;
   }
   diag.lastSampleAt=s.receivedAt;
@@ -165,13 +174,13 @@ async function diagExport(id,copy){
     const data=await diagRead(id);
     if(!data){alert('이 운행에는 진단 기록이 없어요. D1 시험판으로 새로 측정한 운행부터 저장됩니다.');return;}
     const basic=(drive&&drive.id===id)?drive:loadLog().find(x=>x.id===id);
-    const payload={format:'smooth-drive-diagnostics-v1',units:{speed:'km/h',acceleration:'km/h/s',time:'Unix milliseconds',position:'WGS84 degrees',accuracy:'m'},note:'측정값은 독립 장비로 검증되지 않았습니다. 회전 완화는 실제 기준 필드에만 기록합니다. 전후 구간은 GPS 콜백이 도착한 범위만 포함합니다. 경로에는 제외된 측정값도 accepted=false로 남습니다.',drive:basic||null,diagnostics:data};
+    const payload={format:'smooth-drive-diagnostics-v1',units:{sensorSpeed:'m/s',speed:'km/h',acceleration:'km/h/s',time:'Unix milliseconds',position:'WGS84 degrees',accuracy:'m'},timezone:'Asia/Seoul',note:'D2 samples는 sampleColumns 순서의 전체 수신 기록입니다. GPS 수신 공백은 복원되지 않으며 holds에 기록됩니다. 보류는 정상 판정이 아닙니다. 측정값은 독립 장비로 검증되지 않았습니다. 회전 완화는 실제 기준 필드에만 기록합니다. 전후 구간은 GPS 콜백이 도착한 범위만 포함합니다. 경로에는 제외된 측정값도 accepted=false로 남습니다.',drive:basic||null,diagnostics:data};
     const text=JSON.stringify(payload,null,2);
     if(copy){
       try{await navigator.clipboard.writeText(text);alert('진단 기록을 복사했어요. 대화에 붙여 넣어 주세요.');}
       catch(e){const ta=$('hta');ta.style.display='block';ta.value=text;ta.select();alert('텍스트 상자에서 전체 선택 후 복사해 주세요.');}
     }else{
-      const url=URL.createObjectURL(new Blob([text],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='drive-D1-'+id+'.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),10000);
+      const url=URL.createObjectURL(new Blob([text],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='drive-'+(data.version||'legacy')+'-'+id+'.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),10000);
     }
   }catch(e){alert('진단 기록을 읽지 못했어요. 저장 상태를 확인해 주세요.');}
 }
@@ -196,8 +205,11 @@ function rec(l,n,v,a,acc,lim,turn){
 function warmTick(){
   const left=Math.ceil((5000-(Date.now()-warmAt))/1000);
   if(left>0){ $('msg').textContent='GPS 안정화 중… '+left; return; }
+  if(warmGood.length<QUALITY.warmSamples||warmGood.at(-1).t-warmGood[0].t<QUALITY.warmSpanMs||Date.now()-warmGood.at(-1).receivedAt>2500){
+    $('msg').textContent='GPS 안정화 중… 정상 속도 확인';return;
+  }
   clearInterval(warmTimer); warmTimer=null;
-  active=true; hist=[]; km=0; cnt=newCnt(); updEv();
+  active=true; resetMotion(); km=0; cnt=newCnt(); updEv();
   drive={id:Date.now(),start:Date.now(),end:Date.now(),km:0,cnt:cnt,events:[],version:DIAG_VERSION};
   diagBegin();
   saveTimer=setInterval(saveDrive,15000); saveDrive();
@@ -205,8 +217,10 @@ function warmTick(){
   $('msg').textContent='측정 시작'; beep(2000,1);
 }
 function endDrive(){
+  clearInterval(qualityTimer);qualityTimer=null;
   clearInterval(warmTimer); clearInterval(saveTimer); warmTimer=saveTimer=null;
   if(diag) {diag.endedAt=Date.now(); diag.endedNormally=true;}
+  closeHold();
   saveDrive(); drive=null; diagLastEnded=diag; diag=null; sample=null; active=false; warmAt=0;
 }
 const fmtT=ms=>new Date(ms).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',hour12:false});
@@ -215,7 +229,7 @@ function cellsHTML(c){ return TYPES.map(k=>'<div class="c"><span>'+k+'</span><sp
 function copyLog(log){
   const txt=log.map(d=>(d.version?'[앱 '+d.version+']\n':'')+'['+new Date(d.start).toLocaleDateString('ko-KR')+' '+fmtT(d.start)+'~'+fmtT(d.end)+' '+d.km+'km 최대가속 '+(d.maxA!=null?d.maxA.toFixed(1):'-')+' 최대감속 '+(d.minA!=null?d.minA.toFixed(1):'-')+']\n'+d.events.map(e=>new Date(e.t).toLocaleTimeString('ko-KR',{hour12:false})+' '+e.n+' '+(e.l==='d'?'위반':'경고')+' 속도'+e.v+' 가속도'+e.a+'(기준'+(e.lim==null?'-':baseLim(e.n,e.v))+') GPS오차'+e.acc+'m 회전'+(e.tn||0)+'도/초'+(Number.isFinite(e.lat)&&Number.isFinite(e.lon)?' 위치 '+e.lat+','+e.lon:'')).join('\n')).join('\n\n');
   const ta=$('hta');
-  navigator.clipboard.writeText(txt).then(()=>{ $('hc').textContent='복사됨'; }).catch(()=>{ ta.style.display='block'; ta.value=txt; ta.select(); });
+  Promise.resolve().then(()=>navigator.clipboard.writeText(txt)).then(()=>{ $('hc').textContent='복사됨'; }).catch(()=>{ ta.style.display='block'; ta.value=txt; ta.select(); });
 }
 // 기록에 표시하는 기준은 회전 완화를 뺀 순수 위반 기준(정수)
 function baseLim(n,v){
@@ -237,9 +251,10 @@ function naverMapURL(e){
 function driveHTML(d){
   const nd=TYPES.reduce((s,t)=>s+d.cnt[t][0],0), nw=TYPES.reduce((s,t)=>s+d.cnt[t][1],0);
   const rows=d.events.map(e=>'<div class="er"><span>'+fmtS(e.t)+'</span><span style="color:var(--'+(e.l==='d'?'brk':'acc')+')">'+e.n+(e.l==='d'?' 위반':' 경고')+'</span><span style="color:var(--'+(e.l==='d'?'brk':'acc')+')">'+(e.a>0?'+':'')+e.a+'</span><span>'+(e.lim==null?'-':((e.n==='급감속'||e.n==='급정지')?'-':'+')+baseLim(e.n,e.v))+'</span><span>'+e.v+'km/h·±'+e.acc+'m'+(e.tn?'·회전'+e.tn+'°':'')+(Number.isFinite(e.lat)&&Number.isFinite(e.lon)?' <a rel="noopener noreferrer" style="color:var(--ok)" href="'+naverMapURL(e)+'">네이버지도</a>':'')+'</span></div>').join('')||'<div>이벤트 없음</div>';
-  return '<details class="dr"><summary>'+fmtT(d.start)+'~'+fmtT(d.end)+' · '+d.km+'km · 위반 '+nd+' · 경고 '+nw+'</summary><div style="color:var(--mute);font-size:15px;margin-bottom:6px">최대 가속 '+(d.maxA!=null?'+'+d.maxA.toFixed(1):'-')+' · 최대 감속 '+(d.minA!=null?d.minA.toFixed(1):'-')+' (km/h/초)</div><div class="evg">'+cellsHTML(d.cnt)+'</div><div class="el"><div class="er hd"><span>시각</span><span>유형</span><span>가속도</span><span>기준</span><span>속도·GPS오차·회전</span></div>'+rows+'</div><button class="ghost diagcopy" data-id="'+d.id+'">진단 복사</button><button class="ghost diagfile" data-id="'+d.id+'">진단 파일 저장</button><button class="ghost del" data-id="'+d.id+'">이 운행 삭제</button></details>';
+  return '<details class="dr"><summary>'+fmtT(d.start)+'~'+fmtT(d.end)+' · '+d.km+'km · 위반 '+nd+' · 경고 '+nw+'</summary><div style="color:var(--mute);font-size:15px;margin-bottom:6px">최대 가속 '+(d.maxA!=null?'+'+d.maxA.toFixed(1):'-')+' · 최대 감속 '+(d.minA!=null?d.minA.toFixed(1):'-')+' (km/h/초)'+(d.quality?' · 판정 보류 '+d.quality.holdCount+'구간 / '+Math.round(d.quality.holdMs/1000)+'초':'')+'</div><div class="evg">'+cellsHTML(d.cnt)+'</div><div class="el"><div class="er hd"><span>시각</span><span>유형</span><span>가속도</span><span>기준</span><span>속도·GPS오차·회전</span></div>'+rows+'</div><button class="ghost routeshow" data-id="'+d.id+'">운행 전체 경로</button><button class="ghost csvfile" data-id="'+d.id+'">차량 비교 CSV</button><button class="ghost diagcopy" data-id="'+d.id+'">진단 복사</button><button class="ghost diagfile" data-id="'+d.id+'">진단 파일 저장</button><button class="ghost del" data-id="'+d.id+'">이 운행 삭제</button></details>';
 }
 function openHist(){
+  if(active)saveDrive();
   const log=loadLog().sort((a,b)=>b.start-a.start);
   const days={}; log.forEach(d=>{ (days[dayKey(d.start)]=days[dayKey(d.start)]||[]).push(d); });
   let h='<h2>운행 기록 (최근 30일)</h2><button class="ghost" id="hx">닫기</button><button class="ghost" id="hc">기록 복사</button><button class="ghost" id="hd">전체 삭제</button><textarea id="hta" readonly style="display:none;width:100%;height:160px;margin-top:8px"></textarea>';
@@ -248,6 +263,7 @@ function openHist(){
     ds.forEach(d=>{ km2+=d.km; min+=(d.end-d.start)/60000; TYPES.forEach(t=>{ tot[t][0]+=d.cnt[t][0]; tot[t][1]+=d.cnt[t][1]; }); });
     h+='<div class="day"><h3>'+new Date(ds[0].start).toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'})+'</h3>';
     h+='<div>운행 '+ds.length+'회 · '+Math.round(min)+'분 · '+km2.toFixed(1)+'km</div><div class="evg">'+cellsHTML(tot)+'</div>';
+    h+='<button class="ghost dayfile" data-start="'+ds[0].start+'">하루 진단 파일 저장</button>';
     h+=ds.map(driveHTML).join('')+'</div>';
   });
   if(!log.length) h+='<p>아직 기록이 없어요.</p>';
@@ -255,6 +271,9 @@ function openHist(){
   $('hx').onclick=()=>{ $('hist').className=''; };
   $('hd').onclick=()=>{ if(active){alert('측정을 종료한 뒤 삭제해 주세요.');return;} if(confirm('모든 기록을 삭제할까요?')){ try{ localStorage.removeItem(KEY); diagDelete(null); }catch(e){} openHist(); } };
   $('hc').onclick=()=>copyLog(log);
+  document.querySelectorAll('.routeshow').forEach(b=>b.onclick=()=>openRoute(Number(b.dataset.id)));
+  document.querySelectorAll('.csvfile').forEach(b=>b.onclick=()=>exportCSV(Number(b.dataset.id)));
+  document.querySelectorAll('.dayfile').forEach(b=>b.onclick=()=>exportDay(Number(b.dataset.start)));
   document.querySelectorAll('.diagcopy').forEach(b=>b.onclick=()=>diagExport(Number(b.dataset.id),true));
   document.querySelectorAll('.diagfile').forEach(b=>b.onclick=()=>diagExport(Number(b.dataset.id),false));
   document.querySelectorAll('.del').forEach(b=>b.onclick=()=>{
@@ -274,63 +293,98 @@ function alertUser(kind,lvl){
   if(lvl==='w'){ beep(f,1); try{ navigator.vibrate&&navigator.vibrate(150); }catch(e){} }
   else { chirp(f,2); try{ navigator.vibrate&&navigator.vibrate([150,80,150]); }catch(e){} }
 }
-function speedOf(p,prev){
-  // GPS 속도(m/s) 우선, 없으면 두 지점 거리로 계산
-  if(p.coords.speed!=null && !isNaN(p.coords.speed)) return p.coords.speed*3.6;
-  if(!prev) return null;
-  const R=6371000,r=Math.PI/180,a=prev.lat*r,b=p.coords.latitude*r;
-  const dLat=b-a,dLon=(p.coords.longitude-prev.lon)*r;
-  const h=Math.sin(dLat/2)**2+Math.cos(a)*Math.cos(b)*Math.sin(dLon/2)**2;
-  const d=2*R*Math.asin(Math.sqrt(h)), dt=(p.timestamp-prev.t)/1000;
-  return dt>0? d/dt*3.6 : null;
+const QUALITY={gapMs:2500,staleMs:5000,recoveryMs:1800,warmSamples:3,warmSpanMs:2000,warmChangeLimit:6};
+let lastCallbackAt=0, qualityTimer=null, warmGood=[], recoveringAt=null, holdSince=null;
+const SAMPLE_COLUMNS=['gpsT','receivedAt','lat','lon','accuracy','sensorSpeed','heading','rawSpeed','smoothedSpeed','callbackDt','acceleration','chosenRefT','chosenRefSpeed','chosenDt','method','turn','actualLimit','level','status','quality','source'];
+function resetMotion(){hist=[];lastKmh=null;warmGood=[];recoveringAt=null;}
+function closeHold(now=Date.now()){
+  if(holdSince==null)return;
+  if(drive?.quality)drive.quality.holdMs+=Math.max(0,now-holdSince);
+  const h=diag?.holds?.at(-1);if(h&&h.end==null)h.end=now;
+  holdSince=null;
+}
+function hold(reason,reset=false){
+  if(sample){sample.status=reason;sample.quality='hold';sample.level='unknown';}
+  if(reset)resetMotion();
+  if(active&&drive){
+    drive.quality=drive.quality||{holdCount:0,holdMs:0,reasons:{}};
+    if(holdSince==null){
+      holdSince=Date.now();drive.quality.holdCount++;
+      drive.quality.reasons[reason]=(drive.quality.reasons[reason]||0)+1;
+      if(diag.holds.length<2000)diag.holds.push({start:holdSince,end:null,reason,lat:sample?.lat??null,lon:sample?.lon??null,gpsT:sample?.gpsT??null});
+      else diag.droppedHolds++;
+    }
+  }
+  prevDanger=false;prevLvl='unknown';
+  document.body.className='q';$('fill').style.width='0%';
+  $('msg').textContent='판정 보류 · '+reason;
+  $('quality').textContent='측정 불확실 · 정상 판정 아님';
+}
+function resumeJudging(){
+  closeHold();if(sample)sample.quality='valid';
+  $('quality').textContent='D2 · 판정 중';
+}
+function checkSignal(){
+  if(watch!=null&&lastCallbackAt&&Date.now()-lastCallbackAt>3000){
+    hold('GPS 수신 공백',true);$('v').textContent='—';
+  }
+}
+function speedOf(p){
+  // Missing speed is unknown, never a coordinate-derived zero in the classifier.
+  const s=p.coords.speed;return Number.isFinite(s)&&s>=0?s*3.6:null;
 }
 function onPos(p){
-  const wasActive=active;
-  if(wasActive&&diag){
-    sample={gpsT:p.timestamp,receivedAt:Date.now(),lat:p.coords.latitude,lon:p.coords.longitude,accuracy:p.coords.accuracy,heading:p.coords.heading,sensorSpeed:p.coords.speed,source:p.coords.speed!=null&&!isNaN(p.coords.speed)?'GPS속도':'좌표거리',callbackDt:diag.lastGpsT==null?null:(p.timestamp-diag.lastGpsT)/1000,status:'미판정'};
+  const receivedAt=Date.now();lastCallbackAt=receivedAt;
+  if(!warmAt){warmAt=receivedAt;warmTimer=setInterval(warmTick,250);}
+  if(active&&diag){
+    sample={gpsT:p.timestamp,receivedAt,lat:p.coords.latitude,lon:p.coords.longitude,accuracy:p.coords.accuracy,heading:p.coords.heading,sensorSpeed:p.coords.speed,source:speedOf(p)==null?'속도없음':'GPS속도',callbackDt:diag.lastGpsT==null?null:(p.timestamp-diag.lastGpsT)/1000,status:'미판정',quality:'hold'};
     diag.lastGpsT=p.timestamp;
   }
-  try{ onPosCore(p); }
-  finally{if(wasActive&&sample){diagFinish(sample);sample=null;}}
+  try{onPosCore(p);}finally{if(sample){diagFinish(sample);sample=null;}}
 }
 function onPosCore(p){
-  if(!warmAt){ warmAt=Date.now(); warmTimer=setInterval(warmTick,250); }
-  const t=p.timestamp, prev=hist[hist.length-1];
-  let v=speedOf(p,prev&&{lat:prev.lat,lon:prev.lon,t:prev.t});
-  if(sample) sample.rawSpeed=v;
-  // GPS 오차가 30m를 넘으면 신호 불량으로 보고 이 값은 쓰지 않음
-  if(p.coords.accuracy>15){ if(sample) sample.status='GPS오차15m초과_제외'; $('gps').textContent='GPS ±'+Math.round(p.coords.accuracy)+'m (신호 약함)'; if(active) $('msg').textContent='GPS 신호 약함'; return; }
-  if(v==null){ if(sample) sample.status='속도없음'; return; }
-  // 가벼운 평활화로 GPS 잡음 줄이기
-  const raw=v; if(lastKmh!=null) v=lastKmh*0.3+v*0.7;
-  lastKmh=v; if(sample) sample.smoothedSpeed=v;
-  if(active&&prev) km+=v*((t-prev.t)/3600000);
-  hist.push({t,v,r:raw,h:p.coords.heading,lat:p.coords.latitude,lon:p.coords.longitude});
-  hist=hist.filter(h=>t-h.t<5000);
-  $('v').textContent=Math.round(v);
-  $('gps').textContent='GPS ±'+Math.round(p.coords.accuracy)+'m';
-  if(!active) return;
-  // 약 1초 전 기록과 비교해 초당 속도 변화 계산
-  // 약 1초 전에 가장 가까운 기록(0.5~1.8초 범위)과 비교
-  let ref=null, best=1e9;
-  hist.slice(0,-1).forEach(h=>{ const d=t-h.t; if(d>=500&&d<=1800&&Math.abs(d-1000)<best){ best=Math.abs(d-1000); ref=h; } });
-  if(!ref){if(sample) sample.status='0.5~1.8초_비교점없음'; return;}
-  let a=(raw-ref.r)/((t-ref.t)/1000), refR=ref.r;
-  if(sample) Object.assign(sample,{a1:a,chosenRefT:ref.t,chosenRefSpeed:ref.r,method:'약1초',headingRefT:ref.t});
-  // 직전 값과의 변화도 확인해 더 큰 쪽을 사용(놓치지 않도록)
-  const ps=hist[hist.length-2];
-  if(ps&&t-ps.t>=600){ const a2=(raw-ps.r)/((t-ps.t)/1000); if(sample) sample.aPrevious=a2; if(Math.abs(a2)>Math.abs(a)){ a=a2; refR=ps.r; if(sample) Object.assign(sample,{chosenRefT:ps.t,chosenRefSpeed:ps.r,method:'직전변화_큰값선택'}); } }
-  // 정지 상태(5km/h 이하)에서 출발할 때는 GPS가 0에서 튀는 영향을 줄이려고 2초 구간으로 계산
-  if(a>0){
-    let r2=null, b2=1e9;
-    hist.slice(0,-1).forEach(h=>{ const d=t-h.t; if(d>=1500&&d<=2600&&Math.abs(d-2000)<b2){ b2=Math.abs(d-2000); r2=h; } });
-    if(r2&&r2.r<=5){ a=(raw-r2.r)/((t-r2.t)/1000); refR=r2.r; if(sample) Object.assign(sample,{aStart2:a,chosenRefT:r2.t,chosenRefSpeed:r2.r,method:'출발_약2초평균'}); }
+  const t=p.timestamp,c=p.coords,raw=speedOf(p),now=Date.now();
+  if(sample)sample.rawSpeed=raw;
+  if(!Number.isFinite(t)||now-t>QUALITY.staleMs||t-now>2000){hold('측정 시각 불확실',true);return;}
+  if(!Number.isFinite(c.accuracy)||c.accuracy<0||c.accuracy>15||!Number.isFinite(c.latitude)||!Number.isFinite(c.longitude)){
+    warmGood=[];hold('GPS 정확도 불충분');return;
   }
-  // 회전 정도(초당 방향 변화 각도) 계산: 커브에서는 GPS 속도가 더 흔들리므로 기준을 조금 완화
-  let turn=0;
-  if(p.coords.heading!=null&&ref.h!=null&&!isNaN(p.coords.heading)&&!isNaN(ref.h)){ let d=Math.abs(p.coords.heading-ref.h)%360; if(d>180) d=360-d; turn=d/((t-ref.t)/1000); }
-  if(sample) Object.assign(sample,{acceleration:a,chosenDt:(t-sample.chosenRefT)/1000,turn,decisionSpeed:raw});
-  show(a,raw,refR,p.coords.accuracy,a,raw,turn);
+  $('gps').textContent='GPS ±'+Math.round(c.accuracy)+'m';
+  if(raw==null){warmGood=[];hold('GPS 속도 없음');$('v').textContent='—';return;}
+  let prev=hist.at(-1);
+  if(prev&&t<=prev.t){hold('중복·역순 측정 시각');return;}
+  if(prev&&t-prev.t>QUALITY.gapMs){resetMotion();prev=null;}
+  if(!prev)recoveringAt=t;
+  const smooth=lastKmh==null?raw:lastKmh*0.3+raw*0.7;
+  const point={t,v:smooth,r:raw,h:c.heading,lat:c.latitude,lon:c.longitude};
+  // Warm-up requires time plus a stable sequence, rather than time alone.
+  if(!active){
+    if(prev){const a=(raw-prev.r)/((t-prev.t)/1000);if(Math.abs(a)>QUALITY.warmChangeLimit)warmGood=[];}
+    warmGood.push({t,receivedAt:now});warmGood=warmGood.filter(x=>t-x.t<=5000);
+    hist.push(point);hist=hist.filter(h=>t-h.t<5000);lastKmh=smooth;
+    $('v').textContent=Math.round(smooth);$('quality').textContent='GPS 안정화 중 · 판정 전';return;
+  }
+  if(sample)sample.smoothedSpeed=smooth;
+  let ref=null,best=Infinity;
+  hist.forEach(h=>{const d=t-h.t;if(d>=500&&d<=1800&&Math.abs(d-1000)<best){best=Math.abs(d-1000);ref=h;}});
+  if(!ref||t-recoveringAt<QUALITY.recoveryMs){
+    hist.push(point);hist=hist.filter(h=>t-h.t<5000);lastKmh=smooth;
+    $('v').textContent=Math.round(smooth);hold('비교할 정상 속도 수집 중');return;
+  }
+  let a=(raw-ref.r)/((t-ref.t)/1000),chosen=ref,method='약1초';
+  if(sample)sample.a1=a;
+  if(prev&&t-prev.t>=600){const a2=(raw-prev.r)/((t-prev.t)/1000);if(sample)sample.aPrevious=a2;if(Math.abs(a2)>Math.abs(a)){a=a2;chosen=prev;method='직전변화_큰값선택';}}
+  if(a>0){let r2=null,b2=Infinity;hist.forEach(h=>{const d=t-h.t;if(d>=1500&&d<=2600&&Math.abs(d-2000)<b2){b2=Math.abs(d-2000);r2=h;}});if(r2&&r2.r<=5){a=(raw-r2.r)/((t-r2.t)/1000);chosen=r2;method='출발_약2초평균';if(sample)sample.aStart2=a;}}
+  const headingKnown=Number.isFinite(c.heading)&&Number.isFinite(ref.h);
+  let turn=0;if(headingKnown){let d=Math.abs(c.heading-ref.h)%360;if(d>180)d=360-d;turn=d/((t-ref.t)/1000);}
+  if(sample)Object.assign(sample,{acceleration:a,chosenRefT:chosen.t,chosenRefSpeed:chosen.r,chosenDt:(t-chosen.t)/1000,method,headingRefT:ref.t,turn,headingKnown,decisionSpeed:raw});
+  const type=limits(raw,chosen.r).ta;
+  // Previously discarded extremes are now explicit unknowns; do not poison history.
+  if(a>11||a<-18||(a>9&&type==='급가속')){hold('큰 속도 변화 · 확인 필요',true);return;}
+  if(raw>5&&!Number.isFinite(c.heading)){hold('주행 방향 정보 없음');return;}
+  if(prev&&t-prev.t<=QUALITY.gapMs)km+=smooth*((t-prev.t)/3600000);
+  hist.push(point);hist=hist.filter(h=>t-h.t<5000);lastKmh=smooth;
+  $('v').textContent=Math.round(smooth);resumeJudging();show(a,raw,chosen.r,c.accuracy,a,raw,turn);
 }
 function limits(v,v0){
   // 가속 기준: 출발(직전 5km/h 이하)은 8, 이후 현재 속도 구간별
@@ -345,15 +399,15 @@ function show(a,v,v0,acc,aR,raw,turn){
   if(aR<0){ a=aR; v=raw; }
   // 물리적으로 불가능한 값(GPS 튀김)은 무시
   // 버스가 낼 수 있는 범위를 넘는 값(가속 +11, 감속 -18 초과)은 GPS 오류로 보고 무시
-  if(a>11||a<-18){if(sample) sample.status='가속11초과_감속18초과_제외'; return;}
-  if(drive){ if(drive.maxA==null||a>drive.maxA) drive.maxA=a; if(drive.minA==null||a<drive.minA) drive.minA=a; }
+  if(a>11||a<-18){hold('큰 속도 변화 · 확인 필요',true);return;}
   let {la,lb,ta}=limits(v,v0);
   if(sample) Object.assign(sample,{baseAccelLimit:la,baseBrakeLimit:lb,type:ta});
   const pen=Math.min(2,(turn||0)/10); // 초당 10도 회전당 기준 +1, 최대 +2
   la+=pen; lb+=pen;
   // 주행 중 급가속은 버스가 낼 수 있는 수치(+9)를 넘으면 GPS 오류로 무시 (급출발은 2초 평균이라 제외)
-  if(sample) Object.assign(sample,{turnPenalty:pen,accelLimit:la,brakeLimit:lb,maximumUpdatedBeforeFilter:true});
-  if(a>9&&ta==='급가속'){if(sample) sample.status='주행가속9초과_제외_최대값에는반영';return;}
+  if(sample) Object.assign(sample,{turnPenalty:pen,accelLimit:la,brakeLimit:lb,maximumUpdatedBeforeFilter:false});
+  if(a>9&&ta==='급가속'){hold('큰 속도 변화 · 확인 필요',true);return;}
+if(drive){ if(drive.maxA==null||a>drive.maxA) drive.maxA=a; if(drive.minA==null||a<drive.minA) drive.minA=a; }
   const an=(a>0?'+':'')+a.toFixed(1);
   const pct=Math.min(Math.abs(a),MAX)/MAX*50;
   const f=$('fill');
@@ -380,7 +434,7 @@ function show(a,v,v0,acc,aR,raw,turn){
   if(sample) Object.assign(sample,{status:'판정완료',level:lvl,type:name,previousLevel:prevLvl,previousDanger:prevDanger,eventRule:'위반진입시_경고는정상에서진입시',actualLimit:kind==='a'?la:lbShow});
   const danger=lvl==='d';
   if(danger&&!prevDanger){ cnt[name][0]++; updEv(); rec('d',name,v,a,acc,kind==='a'?la:lbShow,turn); }
-  if(lvl==='w'&&prevLvl==='ok'){ cnt[name][1]++; updEv(); rec('w',name,v,a,acc,kind==='a'?la:lbShow,turn); }
+  if(lvl==='w'&&(prevLvl==='ok'||prevLvl==='unknown')){ cnt[name][1]++; updEv(); rec('w',name,v,a,acc,kind==='a'?la:lbShow,turn); }
   prevLvl=lvl;
   prevDanger=danger;
   if(lvl!=='ok') alertUser(kind,lvl);
@@ -389,11 +443,13 @@ async function start(){
   if(!navigator.geolocation){ $('msg').textContent='이 기기는 위치 기능을 지원하지 않아요'; return; }
   try{ ctx=new (window.AudioContext||window.webkitAudioContext)(); ctx.resume(); }catch(e){}
   try{ if(navigator.wakeLock) lock=await navigator.wakeLock.request('screen'); }catch(e){}
+  resetMotion();holdSince=null;lastCallbackAt=Date.now();
+  qualityTimer=setInterval(checkSignal,1000);
   cnt=newCnt(); prevLvl='ok'; hist=[]; lastKmh=null; prevDanger=false; lastLvl=''; active=false; warmAt=0; drive=null;
   updEv();
   $('msg').textContent='GPS 신호 찾는 중…'; $('st').textContent='GPS 연결 중';
   watch=navigator.geolocation.watchPosition(onPos,err=>{
-    $('msg').textContent=err.code===1?'위치 권한을 허용해 주세요':'GPS 신호를 받지 못했어요';
+    hold(err.code===1?'위치 권한 없음':'GPS 수신 오류',true);$('v').textContent='—';
   },{enableHighAccuracy:true,maximumAge:0,timeout:10000});
   $('btn').textContent='종료'; $('btn').className='stop';
 }
@@ -402,8 +458,113 @@ function stop(){
   if(watch!=null) navigator.geolocation.clearWatch(watch); watch=null;
   try{ lock&&lock.release(); }catch(e){} lock=null;
   document.body.className=''; $('st').textContent='대기 중'; $('msg').textContent='시작을 누르세요';
+  $('quality').textContent='D2 · 측정 대기';
   $('btn').textContent='시작'; $('btn').className='';
 }
+const escapeHTML=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function downloadText(text,name,type='application/json'){
+  const url=URL.createObjectURL(new Blob([text],{type})),a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),10000);
+}
+async function exportDay(start){
+  if(active)saveDrive();
+  const drives=loadLog().filter(d=>dayKey(d.start)===dayKey(start)).sort((a,b)=>a.start-b.start);
+  const items=[],missing=[];
+  for(const d of drives){let diagnostic=null;try{diagnostic=await diagRead(d.id);}catch(e){}if(!diagnostic)missing.push(d.id);items.push({drive:d,diagnostics:diagnostic});}
+  if(missing.length)alert('진단 기록이 없는 운행 '+missing.length+'건은 요약만 포함합니다.');
+  downloadText(JSON.stringify({format:'smooth-drive-day-v1',timezone:'Asia/Seoul',exportedAt:Date.now(),date:dayKey(start),missingDiagnosticIds:missing,items}), 'drive-day-'+dayKey(start)+'.json');
+}
+function csvText(d){
+  const cols=d.sampleColumns||[],rows=d.samples||[];
+  const cell=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
+  const header=['gpsTimeISO','gpsTimeKST',...cols];
+  const time=ms=>Number.isFinite(ms)?new Date(ms):null;
+  return '\uFEFF'+[header,...rows.map(r=>{const date=time(r[0]);return [date?.toISOString()||'',date?.toLocaleString('sv-SE',{timeZone:'Asia/Seoul'})||'',...r];})].map(row=>row.map(cell).join(',')).join('\r\n');
+}
+async function exportCSV(id){
+  try{const d=await diagRead(id);if(!d?.samples?.length){alert('초별 비교 CSV는 D2로 새로 측정한 운행부터 제공됩니다.');return;}downloadText(csvText(d),'drive-comparison-'+id+'.csv','text/csv;charset=utf-8');}catch(e){alert('비교 기록을 읽지 못했어요.');}
+}
+function routeSegments(route){
+  const out=[];let seg=[],prev=null;
+  for(const p of route||[]){
+    const valid=p.accepted!==false&&Number.isFinite(p.lat)&&Number.isFinite(p.lon)&&Number.isFinite(p.gpsT)&&p.accuracy<=15;
+    if(!valid){if(seg.length)out.push(seg);seg=[];prev=null;continue;}
+    if(prev){const dt=(p.gpsT-prev.gpsT)/1000,dy=(p.lat-prev.lat)*111320,dx=(p.lon-prev.lon)*111320*Math.cos(p.lat*Math.PI/180);
+      if(dt<=0||dt>15||Math.hypot(dx,dy)/dt*3.6>120){if(seg.length)out.push(seg);seg=[];}}
+    seg.push(p);prev=p;
+  }
+  if(seg.length)out.push(seg);return out;
+}
+let routeView=null,routeToken=0,naverLoadPromise=null,naverMapInstance=null;
+function closeRoute(){routeToken++;if(naverMapInstance){naverMapInstance.destroy();naverMapInstance=null;}$('routePanel').hidden=true;routeView=null;}
+function selectRouteEvent(i){
+  const e=routeView?.events[i];if(!e)return;
+  $('routeDetail').textContent=fmtS(e.t)+' · '+e.n+' '+(e.l==='d'?'위반':'경고')+' · '+e.v+'km/h · '+e.a+'km/h/초';
+  if(naverMapInstance&&Number.isFinite(e.lat)&&Number.isFinite(e.lon)){naverMapInstance.panTo(new naver.maps.LatLng(e.lat,e.lon));}
+}
+function drawRoutePreview(segments,events){
+  const points=segments.flat();if(!points.length){$('routePreview').innerHTML='<p>저장된 경로가 없습니다. 이벤트 목록은 아래에서 확인할 수 있어요.</p>';return;}
+  const cos=Math.cos(points[0].lat*Math.PI/180),xy=p=>[p.lon*cos,-p.lat];
+  const all=points.concat(events.filter(e=>Number.isFinite(e.lat)&&Number.isFinite(e.lon)));
+  const xs=all.map(p=>xy(p)[0]),ys=all.map(p=>xy(p)[1]),minX=Math.min(...xs),maxX=Math.max(...xs),minY=Math.min(...ys),maxY=Math.max(...ys);
+  const scale=Math.min(540/Math.max(maxX-minX,0.0001),370/Math.max(maxY-minY,0.0001));
+  const project=p=>{const [x,y]=xy(p);return [(x-(minX+maxX)/2)*scale+300,(y-(minY+maxY)/2)*scale+215];};
+  const point=p=>project(p).map(x=>x.toFixed(2)).join(',');
+  let svg='<svg viewBox="0 0 600 430" role="img" aria-label="도로 배경 없는 GPS 경로 미리보기" style="width:100%;max-height:55vh;background:var(--line);border-radius:12px"><text x="16" y="24" fill="var(--fg)" font-size="16">북 ↑ · GPS 경로 미리보기</text>';
+  for(const seg of segments)svg+='<polyline points="'+seg.map(point).join(' ')+'" fill="none" stroke="#55b9f3" stroke-width="3"/>';
+  [[points[0],'출발'],[points.at(-1),'종료']].forEach(([p,label])=>{const [x,y]=project(p);svg+='<circle cx="'+x+'" cy="'+y+'" r="5" fill="var(--fg)"/><text x="'+(x+7)+'" y="'+(y-7)+'" fill="var(--fg)" font-size="14">'+label+'</text>';});
+  events.forEach((e,i)=>{if(!Number.isFinite(e.lat)||!Number.isFinite(e.lon))return;const [x,y]=project(e);svg+='<g class="routeDot" data-event="'+i+'" tabindex="0" role="button" aria-label="'+escapeHTML(fmtS(e.t)+' '+e.n)+'"><circle cx="'+x+'" cy="'+y+'" r="12" fill="'+(e.l==='d'?'#ff5a6e':'#f2b134')+'"/><text x="'+x+'" y="'+(y+4)+'" text-anchor="middle" font-size="12" fill="#102028">'+(i+1)+'</text></g>';});
+  $('routePreview').innerHTML=svg+'</svg>';
+  document.querySelectorAll('.routeDot').forEach(el=>{el.onclick=()=>selectRouteEvent(Number(el.dataset.event));el.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();el.onclick();}};});
+}
+function loadNaverSDK(key){
+  if(window.naver?.maps)return Promise.resolve();
+  if(naverLoadPromise)return naverLoadPromise;
+  naverLoadPromise=new Promise((resolve,reject)=>{
+    const s=document.createElement('script');let done=false;
+    const finish=error=>{if(done)return;done=true;clearTimeout(timer);if(error){s.remove();naverLoadPromise=null;reject(error);}else resolve();};
+    const timer=setTimeout(()=>finish(Error('지도를 불러오지 못했습니다. 네트워크와 지도 설정을 확인해 주세요.')),12000);
+    window.navermap_authFailure=()=>{const message='네이버지도 인증 실패 · Client ID와 등록된 Web 서비스 URL을 확인해 주세요.';if($('mapStatus'))$('mapStatus').textContent=message;finish(Error(message));};
+    s.src='https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId='+encodeURIComponent(key);
+    s.onload=()=>finish(window.naver?.maps?null:Error('네이버지도 설정을 확인해 주세요.'));s.onerror=()=>finish(Error('네이버지도에 연결하지 못했습니다.'));document.head.appendChild(s);
+  });return naverLoadPromise;
+}
+async function drawNaverRoute(key,token){
+  $('mapStatus').textContent='네이버지도 불러오는 중…';
+  try{
+    await loadNaverSDK(key);if(token!==routeToken||!routeView)return;
+    const M=naver.maps,points=routeView.segments.flat();if(!points.length){$('mapStatus').textContent='표시할 경로가 없습니다.';return;}
+    if(naverMapInstance)naverMapInstance.destroy();$('naverMap').hidden=false;
+    const map=naverMapInstance=new M.Map('naverMap',{center:new M.LatLng(points[0].lat,points[0].lon),zoom:13});
+    const bounds=new M.LatLngBounds();points.forEach(p=>bounds.extend(new M.LatLng(p.lat,p.lon)));
+    routeView.segments.forEach(seg=>{if(seg.length>1)new M.Polyline({map,path:seg.map(p=>new M.LatLng(p.lat,p.lon)),strokeColor:'#168fe5',strokeWeight:4});});
+    const info=new M.InfoWindow({content:'',borderWidth:0});
+    routeView.events.forEach((e,i)=>{if(!Number.isFinite(e.lat)||!Number.isFinite(e.lon))return;
+      const marker=new M.Marker({map,position:new M.LatLng(e.lat,e.lon),title:fmtS(e.t)+' '+e.n,icon:{content:'<div style="border-radius:50%;width:28px;height:28px;line-height:28px;text-align:center;background:'+(e.l==='d'?'#ff5a6e':'#f2b134')+';color:#111;font-weight:bold;border:2px solid white">'+(i+1)+'</div>',anchor:new M.Point(14,14)}});
+      M.Event.addListener(marker,'click',()=>{selectRouteEvent(i);info.setContent('<div style="padding:10px;color:#111;background:white;font-size:14px">'+escapeHTML($('routeDetail').textContent)+'</div>');info.open(map,marker);});
+    });
+    [[points[0],'출발'],[points.at(-1),'종료']].forEach(([p,label])=>new M.Marker({map,position:new M.LatLng(p.lat,p.lon),title:label,icon:{content:'<div style="background:#153e58;color:white;border:2px solid white;padding:3px 6px;border-radius:5px;white-space:nowrap">'+label+'</div>'}}));
+    map.fitBounds(bounds);$('routePreview').hidden=true;$('mapStatus').textContent='네이버지도 · 저장된 GPS 경로와 이벤트 전체';
+  }catch(e){if(token===routeToken){$('mapStatus').textContent=e.message;$('routePreview').hidden=false;$('naverMap').hidden=true;}}
+}
+async function openRoute(id){
+  if(active){alert('운행을 종료한 뒤 전체 경로를 확인해 주세요.');return;}
+  closeRoute();const token=++routeToken;$('routePanel').hidden=false;
+  $('routePanel').innerHTML='<button class="ghost" id="routeClose">닫기</button><h2 id="routeTitle">운행 경로</h2><p id="mapStatus" role="status">경로 읽는 중…</p><div id="naverMap" style="height:55vh;min-height:320px" hidden></div><div id="routePreview"></div><p>파랑: 경로 · 빨강: 위반 · 노랑: 경고<br>GPS 기록점을 연결한 경로입니다. 수신 공백·불량 구간은 선을 끊어 표시합니다.</p><p id="routeDetail">번호를 누르면 이벤트를 확인할 수 있어요.</p><div id="routeEvents"></div><details><summary>네이버지도 연결 설정</summary><p>네이버 클라우드 Maps의 지도용 Client ID를 입력해 주세요. Client Secret은 입력하지 않습니다. Web 서비스 URL에 아래 주소를 등록해야 합니다.</p><p id="mapOrigin"></p><a href="https://guide.ncloud-docs.com/docs/maps-app" target="_blank" rel="noopener noreferrer">공식 설정 안내</a><p>네이버 클라우드 이용요금·무료 한도를 확인한 뒤 설정하세요.</p><label>지도 Client ID <input id="mapKey" type="text" autocomplete="off" style="max-width:100%"></label><button class="ghost" id="mapConnect">저장하고 연결</button></details>';
+  $('routeClose').onclick=closeRoute;$('mapOrigin').textContent=location.origin;
+  let key='';try{key=localStorage.getItem('naver_map_client_id')||'';}catch(e){}$('mapKey').value=key;
+  $('mapConnect').onclick=()=>{const k=$('mapKey').value.trim();if(!/^[a-zA-Z0-9_-]{5,100}$/.test(k)){alert('지도용 Client ID를 확인해 주세요.');return;}try{localStorage.setItem('naver_map_client_id',k);}catch(e){}drawNaverRoute(k,token);};
+  try{
+    const d=await diagRead(id);if(token!==routeToken)return;
+    const basic=loadLog().find(x=>x.id===id);routeView={segments:routeSegments(d?.route),events:basic?.events||[]};
+    $('routeTitle').textContent=(basic?fmtT(basic.start)+'~'+fmtT(basic.end)+' · ':'')+'운행 경로';
+    drawRoutePreview(routeView.segments,routeView.events);
+    $('routeEvents').innerHTML=routeView.events.map((e,i)=>'<button class="ghost routeEvent" data-event="'+i+'">'+(i+1)+'. '+escapeHTML(fmtS(e.t)+' '+e.n+' '+(e.l==='d'?'위반':'경고'))+'</button>').join('')||'<p>이벤트 없음</p>';
+    document.querySelectorAll('.routeEvent').forEach(b=>b.onclick=()=>selectRouteEvent(Number(b.dataset.event)));
+    $('mapStatus').textContent=d?.route?.length?'경로 미리보기 · 도로 배경 없음. 네이버지도는 아래 연결 설정 후 사용할 수 있어요.':'이 운행에는 저장된 경로가 없습니다.';
+    if(key)drawNaverRoute(key,token);
+  }catch(e){if(token===routeToken)$('mapStatus').textContent='경로를 읽지 못했습니다.';}
+}
+
 $('btn').onclick=()=>watch==null?start():stop();
 $('hbtn').onclick=openHist;
 document.addEventListener('visibilitychange',async()=>{
@@ -415,3 +576,4 @@ document.addEventListener('visibilitychange',async()=>{
 </script>
 </body>
 </html>
+
