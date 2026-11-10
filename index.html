@@ -49,13 +49,14 @@ body.q{background:color-mix(in srgb,#548ac1 22%,var(--bg))}
 #routePanel{position:fixed;inset:0;z-index:30;overflow:auto;padding:20px;background:var(--bg)}
 #routePanel[hidden]{display:none}#routePanel p{font-size:16px;line-height:1.5}#routePanel a{color:var(--ok)}
 .routeDot{cursor:pointer}.routeDot:focus{outline:2px solid white}
+#osmMap{isolation:isolate;color:#111}#osmMap .leaflet-control a{color:#12649c}#osmMap .leaflet-control-zoom a{font-size:22px}#osmMap .leaflet-popup-content{font-size:14px;line-height:1.5}.drive-marker{background:none;border:none}
 </style>
 </head>
 <body>
 <div class="top"><span id="st">대기 중</span><span style="font-size:15px">빨강 위반 · 노랑 경고</span></div>
 <div id="ev" class="evg"><div class="c"><span>급가속</span><span><b style="color:var(--brk)">0</b> / <b style="color:var(--acc)">0</b></span></div><div class="c"><span>급출발</span><span><b style="color:var(--brk)">0</b> / <b style="color:var(--acc)">0</b></span></div><div class="c"><span>급감속</span><span><b style="color:var(--brk)">0</b> / <b style="color:var(--acc)">0</b></span></div><div class="c"><span>급정지</span><span><b style="color:var(--brk)">0</b> / <b style="color:var(--acc)">0</b></span></div></div>
 <div class="speed"><b id="v">0</b><span>km/h</span></div>
-<div id="quality" role="status">D2 · 측정 대기</div><div class="msg" id="msg">시작을 누르세요</div>
+<div id="quality" role="status">D2-OSM · 측정 대기</div><div class="msg" id="msg">시작을 누르세요</div>
 <div class="gauge"><div class="fill" id="fill"></div><div class="mid"></div>
 <div class="lim" id="limB" style="left:calc(50% - 9 / 14 * 50% - 1px)"></div>
 <div class="lim" id="limA" style="left:calc(50% + 8 / 14 * 50% - 1px)"></div></div>
@@ -63,7 +64,7 @@ body.q{background:color-mix(in srgb,#548ac1 22%,var(--bg))}
 <div class="row"><span>소리 알림 <input type="checkbox" id="snd" checked></span><span id="gps">GPS 대기</span></div>
 <button id="btn">시작</button>
 <button id="hbtn" class="ghost">기록 보기</button>
-<div id="hist"></div><section id="routePanel" hidden></section><p id="diagStatus" class="note">진단 시험판 D2 · 전후 기록 자동 저장</p>
+<div id="hist"></div><section id="routePanel" hidden></section><p id="diagStatus" class="note">진단 시험판 D2-OSM · 전후 기록 자동 저장</p>
 <p class="note">화면을 켜 둔 채 거치대에 두고 사용하세요. 운전 중에는 화면을 보지 말고 소리로 확인하세요.</p>
 <script>
 const MAX=14;
@@ -99,7 +100,7 @@ function updEv(){
 let active=false, warmAt=0, warmTimer=null, saveTimer=null, drive=null, km=0;
 const KEY='drive_log_v1';
 // Diagnostics are observers only: no values below feed the driving classifier.
-const DIAG_VERSION='2026-11-09-D2';
+const DIAG_VERSION='2026-11-10-D2-OSM';
 let diag=null, sample=null, diagRing=[], diagDBPromise=null, diagLastEnded=null, diagPrunedAt=0;
 function diagStatus(message){$('diagStatus').textContent=message;}
 function diagDB(){
@@ -128,7 +129,7 @@ function diagSave(){
   if(!diag)return;
   diag.updatedAt=Date.now();
   const snapshot=JSON.parse(JSON.stringify(diag));
-  diagWrite(snapshot).then(()=>diagStatus('진단 D2 · 저장 완료 '+fmtT(snapshot.updatedAt)+((snapshot.droppedClips||snapshot.droppedSamples||snapshot.droppedRoute||snapshot.droppedHolds)?' · 일부 기록은 저장 상한으로 생략':''))).catch(()=>diagStatus('진단 저장 실패 · 운행 종료 전 진단 파일을 내려받으세요.'));
+  diagWrite(snapshot).then(()=>diagStatus('진단 D2-OSM · 저장 완료 '+fmtT(snapshot.updatedAt)+((snapshot.droppedClips||snapshot.droppedSamples||snapshot.droppedRoute||snapshot.droppedHolds)?' · 일부 기록은 저장 상한으로 생략':''))).catch(()=>diagStatus('진단 저장 실패 · 운행 종료 전 진단 파일을 내려받으세요.'));
 }
 function diagBegin(){
   diagRing=[];
@@ -458,7 +459,7 @@ function stop(){
   if(watch!=null) navigator.geolocation.clearWatch(watch); watch=null;
   try{ lock&&lock.release(); }catch(e){} lock=null;
   document.body.className=''; $('st').textContent='대기 중'; $('msg').textContent='시작을 누르세요';
-  $('quality').textContent='D2 · 측정 대기';
+  $('quality').textContent='D2-OSM · 측정 대기';
   $('btn').textContent='시작'; $('btn').className='';
 }
 const escapeHTML=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -494,12 +495,12 @@ function routeSegments(route){
   }
   if(seg.length)out.push(seg);return out;
 }
-let routeView=null,routeToken=0,naverLoadPromise=null,naverMapInstance=null;
-function closeRoute(){routeToken++;if(naverMapInstance){naverMapInstance.destroy();naverMapInstance=null;}$('routePanel').hidden=true;routeView=null;}
+let routeView=null,routeToken=0,leafletPromise=null,routeMap=null,eventMarkers=[];
+function closeRoute(){routeToken++;if(routeMap){routeMap.remove();routeMap=null;}eventMarkers=[];$('routePanel').hidden=true;routeView=null;}
 function selectRouteEvent(i){
   const e=routeView?.events[i];if(!e)return;
   $('routeDetail').textContent=fmtS(e.t)+' · '+e.n+' '+(e.l==='d'?'위반':'경고')+' · '+e.v+'km/h · '+e.a+'km/h/초';
-  if(naverMapInstance&&Number.isFinite(e.lat)&&Number.isFinite(e.lon)){naverMapInstance.panTo(new naver.maps.LatLng(e.lat,e.lon));}
+  if(routeMap&&Number.isFinite(e.lat)&&Number.isFinite(e.lon)){routeMap.panTo([e.lat,e.lon]);eventMarkers[i]?.openPopup();}
 }
 function drawRoutePreview(segments,events){
   const points=segments.flat();if(!points.length){$('routePreview').innerHTML='<p>저장된 경로가 없습니다. 이벤트 목록은 아래에서 확인할 수 있어요.</p>';return;}
@@ -516,43 +517,48 @@ function drawRoutePreview(segments,events){
   $('routePreview').innerHTML=svg+'</svg>';
   document.querySelectorAll('.routeDot').forEach(el=>{el.onclick=()=>selectRouteEvent(Number(el.dataset.event));el.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();el.onclick();}};});
 }
-function loadNaverSDK(key){
-  if(window.naver?.maps)return Promise.resolve();
-  if(naverLoadPromise)return naverLoadPromise;
-  naverLoadPromise=new Promise((resolve,reject)=>{
-    const s=document.createElement('script');let done=false;
-    const finish=error=>{if(done)return;done=true;clearTimeout(timer);if(error){s.remove();naverLoadPromise=null;reject(error);}else resolve();};
-    const timer=setTimeout(()=>finish(Error('지도를 불러오지 못했습니다. 네트워크와 지도 설정을 확인해 주세요.')),12000);
-    window.navermap_authFailure=()=>{const message='네이버지도 인증 실패 · Client ID와 등록된 Web 서비스 URL을 확인해 주세요.';if($('mapStatus'))$('mapStatus').textContent=message;finish(Error(message));};
-    s.src='https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId='+encodeURIComponent(key);
-    s.onload=()=>finish(window.naver?.maps?null:Error('네이버지도 설정을 확인해 주세요.'));s.onerror=()=>finish(Error('네이버지도에 연결하지 못했습니다.'));document.head.appendChild(s);
-  });return naverLoadPromise;
+function loadLeaflet(){
+  if(window.L)return Promise.resolve();
+  if(leafletPromise)return leafletPromise;
+  leafletPromise=new Promise((resolve,reject)=>{
+    const css=document.createElement('link'),js=document.createElement('script');let done=false,ready=0;
+    const finish=error=>{if(done)return;if(!error&&++ready<2)return;done=true;clearTimeout(timer);if(error){css.remove();js.remove();leafletPromise=null;reject(error);}else resolve();};
+    const timer=setTimeout(()=>finish(Error('지도 연결이 지연돼 경로 미리보기를 표시합니다.')),12000);
+    css.rel='stylesheet';css.href='https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css';
+    js.src='https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js';
+    css.onload=()=>finish();js.onload=()=>finish(window.L?null:Error('지도 프로그램을 불러오지 못했습니다.'));
+    css.onerror=js.onerror=()=>finish(Error('지도에 연결하지 못했습니다. 경로 미리보기를 확인해 주세요.'));
+    document.head.append(css,js);
+  });return leafletPromise;
 }
-async function drawNaverRoute(key,token){
-  $('mapStatus').textContent='네이버지도 불러오는 중…';
+async function drawOSMRoute(token){
+  $('mapStatus').textContent='오픈스트리트맵 불러오는 중…';
   try{
-    await loadNaverSDK(key);if(token!==routeToken||!routeView)return;
-    const M=naver.maps,points=routeView.segments.flat();if(!points.length){$('mapStatus').textContent='표시할 경로가 없습니다.';return;}
-    if(naverMapInstance)naverMapInstance.destroy();$('naverMap').hidden=false;
-    const map=naverMapInstance=new M.Map('naverMap',{center:new M.LatLng(points[0].lat,points[0].lon),zoom:13});
-    const bounds=new M.LatLngBounds();points.forEach(p=>bounds.extend(new M.LatLng(p.lat,p.lon)));
-    routeView.segments.forEach(seg=>{if(seg.length>1)new M.Polyline({map,path:seg.map(p=>new M.LatLng(p.lat,p.lon)),strokeColor:'#168fe5',strokeWeight:4});});
-    const info=new M.InfoWindow({content:'',borderWidth:0});
-    routeView.events.forEach((e,i)=>{if(!Number.isFinite(e.lat)||!Number.isFinite(e.lon))return;
-      const marker=new M.Marker({map,position:new M.LatLng(e.lat,e.lon),title:fmtS(e.t)+' '+e.n,icon:{content:'<div style="border-radius:50%;width:28px;height:28px;line-height:28px;text-align:center;background:'+(e.l==='d'?'#ff5a6e':'#f2b134')+';color:#111;font-weight:bold;border:2px solid white">'+(i+1)+'</div>',anchor:new M.Point(14,14)}});
-      M.Event.addListener(marker,'click',()=>{selectRouteEvent(i);info.setContent('<div style="padding:10px;color:#111;background:white;font-size:14px">'+escapeHTML($('routeDetail').textContent)+'</div>');info.open(map,marker);});
+    await loadLeaflet();if(token!==routeToken||!routeView)return;
+    const points=routeView.segments.flat(),events=routeView.events;
+    const coords=points.concat(events.filter(e=>Number.isFinite(e.lat)&&Number.isFinite(e.lon))).map(p=>[p.lat,p.lon]);
+    if(!coords.length){$('mapStatus').textContent='표시할 위치 기록이 없습니다.';return;}
+    if(routeMap)routeMap.remove();$('osmMap').hidden=false;
+    const map=routeMap=L.map('osmMap',{scrollWheelZoom:false});eventMarkers=[];
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,keepBuffer:0,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>'})
+      .on('tileerror',()=>{if(token===routeToken)$('mapStatus').textContent='지도 배경 일부를 불러오지 못했습니다. 경로와 이벤트는 계속 표시합니다.';}).addTo(map);
+    routeView.segments.forEach(seg=>{if(seg.length>1)L.polyline(seg.map(p=>[p.lat,p.lon]),{color:'#168fe5',weight:4}).addTo(map);});
+    events.forEach((e,i)=>{if(!Number.isFinite(e.lat)||!Number.isFinite(e.lon))return;
+      const label=(i+1)+'. '+fmtS(e.t)+' · '+e.n+' '+(e.l==='d'?'위반':'경고')+' · '+e.v+'km/h · '+e.a+'km/h/초';
+      const icon=L.divIcon({className:'drive-marker',html:'<div style="border-radius:50%;width:28px;height:28px;line-height:28px;text-align:center;background:'+(e.l==='d'?'#ff5a6e':'#f2b134')+';color:#111;font-weight:bold;border:2px solid white">'+(i+1)+'</div>',iconSize:[32,32],iconAnchor:[16,16]});
+      eventMarkers[i]=L.marker([e.lat,e.lon],{icon,title:label}).addTo(map).bindPopup(escapeHTML(label)).on('click',()=>selectRouteEvent(i));
     });
-    [[points[0],'출발'],[points.at(-1),'종료']].forEach(([p,label])=>new M.Marker({map,position:new M.LatLng(p.lat,p.lon),title:label,icon:{content:'<div style="background:#153e58;color:white;border:2px solid white;padding:3px 6px;border-radius:5px;white-space:nowrap">'+label+'</div>'}}));
-    map.fitBounds(bounds);$('routePreview').hidden=true;$('mapStatus').textContent='네이버지도 · 저장된 GPS 경로와 이벤트 전체';
-  }catch(e){if(token===routeToken){$('mapStatus').textContent=e.message;$('routePreview').hidden=false;$('naverMap').hidden=true;}}
+    if(points.length)[[points[0],'출발'],[points.at(-1),'종료']].forEach(([p,label])=>L.circleMarker([p.lat,p.lon],{radius:6,color:'#153e58',fillColor:'#fff',fillOpacity:1}).addTo(map).bindTooltip(label,{permanent:true,direction:label==='출발'?'top':'bottom'}));
+    const bounds=L.latLngBounds(coords);map.fitBounds(bounds,{padding:[24,24],maxZoom:16});
+    $('routeFit').onclick=()=>map.fitBounds(bounds,{padding:[24,24],maxZoom:16});
+    $('routePreview').hidden=true;$('mapStatus').textContent='오픈스트리트맵 · 전체 운행 경로와 이벤트';
+  }catch(e){if(token===routeToken){$('mapStatus').textContent=e.message;$('routePreview').hidden=false;$('osmMap').hidden=true;}}
 }
 async function openRoute(id){
   if(active){alert('운행을 종료한 뒤 전체 경로를 확인해 주세요.');return;}
   closeRoute();const token=++routeToken;$('routePanel').hidden=false;
-  $('routePanel').innerHTML='<button class="ghost" id="routeClose">닫기</button><h2 id="routeTitle">운행 경로</h2><p id="mapStatus" role="status">경로 읽는 중…</p><div id="naverMap" style="height:55vh;min-height:320px" hidden></div><div id="routePreview"></div><p>파랑: 경로 · 빨강: 위반 · 노랑: 경고<br>GPS 기록점을 연결한 경로입니다. 수신 공백·불량 구간은 선을 끊어 표시합니다.</p><p id="routeDetail">번호를 누르면 이벤트를 확인할 수 있어요.</p><div id="routeEvents"></div><details><summary>네이버지도 연결 설정</summary><p>네이버 클라우드 Maps의 지도용 Client ID를 입력해 주세요. Client Secret은 입력하지 않습니다. Web 서비스 URL에 아래 주소를 등록해야 합니다.</p><p id="mapOrigin"></p><a href="https://guide.ncloud-docs.com/docs/maps-app" target="_blank" rel="noopener noreferrer">공식 설정 안내</a><p>네이버 클라우드 이용요금·무료 한도를 확인한 뒤 설정하세요.</p><label>지도 Client ID <input id="mapKey" type="text" autocomplete="off" style="max-width:100%"></label><button class="ghost" id="mapConnect">저장하고 연결</button></details>';
-  $('routeClose').onclick=closeRoute;$('mapOrigin').textContent=location.origin;
-  let key='';try{key=localStorage.getItem('naver_map_client_id')||'';}catch(e){}$('mapKey').value=key;
-  $('mapConnect').onclick=()=>{const k=$('mapKey').value.trim();if(!/^[a-zA-Z0-9_-]{5,100}$/.test(k)){alert('지도용 Client ID를 확인해 주세요.');return;}try{localStorage.setItem('naver_map_client_id',k);}catch(e){}drawNaverRoute(k,token);};
+  $('routePanel').innerHTML='<button class="ghost" id="routeClose">닫기</button><h2 id="routeTitle">운행 경로</h2><p id="mapStatus" role="status">경로 읽는 중…</p><div id="osmMap" style="height:55vh;min-height:320px" hidden></div><div id="routePreview"></div><p>파랑: 경로 · 빨강: 위반 · 노랑: 경고<br>GPS 기록점을 연결한 경로입니다. 수신 공백·불량 구간은 선을 끊어 표시합니다.</p><p id="routeDetail">번호를 누르면 이벤트를 확인할 수 있어요.</p><div id="routeEvents"></div><button class="ghost" id="routeFit">전체 경로 맞춤</button><p>별도 지도 인증 없이 사용할 수 있습니다. 지도 배경을 보려면 인터넷 연결이 필요합니다.</p>';
+  $('routeClose').onclick=closeRoute;
   try{
     const d=await diagRead(id);if(token!==routeToken)return;
     const basic=loadLog().find(x=>x.id===id);routeView={segments:routeSegments(d?.route),events:basic?.events||[]};
@@ -560,8 +566,8 @@ async function openRoute(id){
     drawRoutePreview(routeView.segments,routeView.events);
     $('routeEvents').innerHTML=routeView.events.map((e,i)=>'<button class="ghost routeEvent" data-event="'+i+'">'+(i+1)+'. '+escapeHTML(fmtS(e.t)+' '+e.n+' '+(e.l==='d'?'위반':'경고'))+'</button>').join('')||'<p>이벤트 없음</p>';
     document.querySelectorAll('.routeEvent').forEach(b=>b.onclick=()=>selectRouteEvent(Number(b.dataset.event)));
-    $('mapStatus').textContent=d?.route?.length?'경로 미리보기 · 도로 배경 없음. 네이버지도는 아래 연결 설정 후 사용할 수 있어요.':'이 운행에는 저장된 경로가 없습니다.';
-    if(key)drawNaverRoute(key,token);
+    $('mapStatus').textContent=d?.route?.length?'경로 미리보기':'이 운행에는 저장된 경로가 없습니다.';
+    drawOSMRoute(token);
   }catch(e){if(token===routeToken)$('mapStatus').textContent='경로를 읽지 못했습니다.';}
 }
 
@@ -576,4 +582,5 @@ document.addEventListener('visibilitychange',async()=>{
 </script>
 </body>
 </html>
+
 
