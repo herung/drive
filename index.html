@@ -51,22 +51,48 @@ body.q{background:color-mix(in srgb,#548ac1 22%,var(--bg))}
 #routePanel[hidden]{display:none}#routePanel p{font-size:16px;line-height:1.5}#routePanel a{color:var(--ok)}
 .routeDot{cursor:pointer}.routeDot:focus{outline:2px solid white}
 #routeMap{height:55vh;min-height:300px;margin-top:12px;background:#dde6eb;color:#17252b} .eventPin span{display:block;border:3px solid;border-radius:8px;color:white;font:bold 14px sans-serif;text-align:center;line-height:26px;white-space:nowrap} #routeMap a{color:#075985} #routeMap .leaflet-control{color:#17252b} #routeMap button{width:auto;margin:0} @media(max-width:420px){#routePanel{padding:12px}#routeMap{height:50vh}}
+
+/* Three-screen layout refresh; driving calculations are unchanged. */
+body{font-family:"Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif;padding:16px;min-height:100svh;height:auto}
+.speed{min-height:200px;flex:1 0 auto;padding:28px 0}.speed b,.msg,.evg b{font-family:"Barlow Condensed",system-ui,sans-serif}
+.top{align-items:center;gap:12px;font-size:15px;min-height:28px}.top>span:last-child{font-size:12px!important;white-space:nowrap}
+#quality{margin:0;text-align:left;font-size:15px;font-weight:700;color:var(--fg);min-height:0;max-width:65%}
+body.q #quality{color:#85b9ee}.evg{gap:8px}.evg .c{padding:10px 3px;border-radius:12px;font-size:14px}.evg b{font-size:26px}
+.scale{align-items:center;font-size:13px;margin-bottom:4px}.scale #gps{font-size:12px;text-align:center}.msg{font-size:29px;min-height:38px}
+#btn{font-size:22px;padding:16px;border-radius:14px}#hbtn{width:100%;margin-right:0;padding:13px;border-radius:14px}
+.footer-meta{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:16px;color:var(--mute);font-size:12px}
+.sound-toggle{display:flex;align-items:center;gap:6px;white-space:nowrap;font-size:13px;min-height:40px}.sound-toggle input{width:18px;height:18px;accent-color:var(--ok);margin:0}
+#diagStatus{margin:0;text-align:right;line-height:1.5;max-width:65%;overflow-wrap:anywhere}
+.safety-note{max-width:310px;align-self:center;font-size:12px;line-height:1.7;margin:8px auto 0;text-wrap:balance}
+#hist,#routePanel{font-family:inherit}#hist h2,#routePanel h2{font-size:21px;line-height:1.4}
+.day{padding:22px 0;border-top:1px solid var(--line);font-size:14px}.day-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}.day-heading h3{font-size:20px;margin:0;white-space:nowrap}.dayfile{font-size:12px;padding:10px;margin:0;line-height:1.4;max-width:135px}
+.dr{border:1px solid var(--line);border-radius:14px;margin-top:12px;overflow:hidden;background:color-mix(in srgb,var(--line) 18%,var(--bg))}.dr[open]{border-color:var(--ok)}
+.dr summary{position:relative;display:block;list-style:none;padding:17px 40px 17px 16px;color:var(--fg);min-height:84px}.dr summary::-webkit-details-marker{display:none}.dr[open] summary{background:color-mix(in srgb,var(--ok) 10%,var(--bg));border-bottom:1px solid var(--line)}
+.trip-time{display:block;font-size:21px;font-weight:750;letter-spacing:.02em;font-variant-numeric:tabular-nums}.trip-meta{display:flex;gap:14px;margin-top:8px;font-size:13px;color:var(--mute)}.danger-text{color:var(--brk)}.warning-text{color:var(--acc)}
+.trip-chevron{position:absolute;right:18px;top:30px;width:9px;height:9px;border-right:2px solid var(--mute);border-bottom:2px solid var(--mute);transform:rotate(45deg)}.dr[open] .trip-chevron{transform:rotate(225deg)}
+.trip-content{padding:14px 12px}.trip-content>.evg{gap:5px}.trip-content .evg .c{font-size:12px}.trip-content .ghost{font-size:14px;margin-top:14px}.trip-content .del{color:var(--brk);background:transparent}.trip-content .routeshow{background:var(--ok);color:#06231b}
+.el{overflow-x:auto;padding-bottom:4px}.er{grid-template-columns:56px 80px 44px 32px minmax(100px,1fr);font-size:12px;gap:5px;padding:10px 0;min-width:332px}.er.hd{font-size:11px}
+#routePanel{padding:16px}#routeMap{isolation:isolate;height:56svh;min-height:320px;border-radius:14px;overflow:hidden;margin-top:14px}.eventPin span{border:2px solid #fff;border-radius:9px;color:#17252b;font:700 12px/26px system-ui,sans-serif;box-shadow:0 2px 5px #0004}
+#routePanel .ghost{font-size:14px;padding:11px 14px}#routePanel #mapStatus{font-size:13px;color:var(--mute);margin:8px 0}#routePanel #routeTitle{margin:18px 0 8px}
+.map-legend{display:flex;flex-wrap:wrap;gap:16px;align-items:center;margin-top:14px;font-size:13px}.map-legend span:before{content:"";display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px}.legend-danger:before{background:#ff5a6e}.legend-warning:before{background:#f2b134}.legend-route:before{background:#168fe5}
+#routePanel .map-hint{font-size:13px;color:var(--mute);margin:10px 0}.map-notes{font-size:12px;color:var(--mute);padding:10px 0}.map-notes summary{cursor:pointer}#routePanel .map-notes p{font-size:12px}#routeDetail{padding:14px;background:var(--line);border-radius:12px;font-size:14px!important}.routeEvent{display:block;width:100%;text-align:left;margin-right:0!important}#routePanel>p:last-child{font-size:11px;color:var(--mute)}
+@media(min-width:650px){body{padding:24px}.speed{min-height:220px}.day-heading h3{font-size:24px}.dayfile{max-width:none;font-size:14px}.er{font-size:15px;grid-template-columns:76px 110px 65px 55px 1fr}.trip-meta{font-size:15px}}
 </style>
 </head>
 <body>
-<div class="top"><span id="st">대기 중</span><span style="font-size:15px">빨강 위반 · 노랑 경고</span></div>
+<div class="top"><span id="quality" role="status">대기 중</span><span style="font-size:15px">빨강 위반 · 노랑 경고</span></div>
 <div id="ev" class="evg"><div class="c"><span>급가속</span><span><b style="color:var(--brk)">0</b> / <b style="color:var(--acc)">0</b></span></div><div class="c"><span>급출발</span><span><b style="color:var(--brk)">0</b> / <b style="color:var(--acc)">0</b></span></div><div class="c"><span>급감속</span><span><b style="color:var(--brk)">0</b> / <b style="color:var(--acc)">0</b></span></div><div class="c"><span>급정지</span><span><b style="color:var(--brk)">0</b> / <b style="color:var(--acc)">0</b></span></div></div>
 <div class="speed"><b id="v">0</b><span>km/h</span></div>
-<div id="quality" role="status">D2-OSM2 · 측정 대기</div><div class="msg" id="msg">시작을 누르세요</div>
+<div class="msg" id="msg">시작을 누르세요</div>
 <div class="gauge"><div class="fill" id="fill"></div><div class="mid"></div>
 <div class="lim" id="limB" style="left:calc(50% - 9 / 14 * 50% - 1px)"></div>
 <div class="lim" id="limA" style="left:calc(50% + 8 / 14 * 50% - 1px)"></div></div>
-<div class="scale"><span id="lbB">감속 −9</span><span id="acc"></span><span id="lbA">가속 +8</span></div>
-<div class="row"><span>소리 알림 <input type="checkbox" id="snd" checked></span><span id="gps">GPS 대기</span></div>
+<div class="scale"><span id="lbB">감속 −9</span><span id="gps">GPS 대기</span><span id="acc" hidden></span><span id="lbA">가속 +8</span></div>
+
 <button id="btn">시작</button>
 <button id="hbtn" class="ghost">기록 보기</button>
-<div id="hist"></div><section id="routePanel" hidden></section><p id="diagStatus" class="note">진단 시험판 D2-OSM2 · 전후 기록 자동 저장</p>
-<p class="note">화면을 켜 둔 채 거치대에 두고 사용하세요. 운전 중에는 화면을 보지 말고 소리로 확인하세요.</p>
+<div id="hist"></div><section id="routePanel" hidden></section><div class="footer-meta"><label class="sound-toggle"><input type="checkbox" id="snd" checked> 소리 알림</label><p id="diagStatus">D2-UI1 · 자동 저장</p></div>
+<p class="note safety-note">화면을 켜 둔 채 거치대에 두고 사용하세요.<br>운전 중에는 소리로 확인하세요.</p>
 <script>
 const MAX=14;
 const $=id=>document.getElementById(id);
@@ -101,7 +127,7 @@ function updEv(){
 let active=false, warmAt=0, warmTimer=null, saveTimer=null, drive=null, km=0;
 const KEY='drive_log_v1';
 // Diagnostics are observers only: no values below feed the driving classifier.
-const DIAG_VERSION='2026-11-10-D2-OSM2';
+const DIAG_VERSION='2026-11-12-D2-UI1';
 let diag=null, sample=null, diagRing=[], diagDBPromise=null, diagLastEnded=null, diagPrunedAt=0;
 function diagStatus(message){$('diagStatus').textContent=message;}
 function diagDB(){
@@ -130,7 +156,7 @@ function diagSave(){
   if(!diag)return;
   diag.updatedAt=Date.now();
   const snapshot=JSON.parse(JSON.stringify(diag));
-  diagWrite(snapshot).then(()=>diagStatus('진단 D2-OSM2 · 저장 완료 '+fmtT(snapshot.updatedAt)+((snapshot.droppedClips||snapshot.droppedSamples||snapshot.droppedRoute||snapshot.droppedHolds)?' · 일부 기록은 저장 상한으로 생략':''))).catch(()=>diagStatus('진단 저장 실패 · 운행 종료 전 진단 파일을 내려받으세요.'));
+  diagWrite(snapshot).then(()=>diagStatus('D2-UI1 · 저장 '+fmtT(snapshot.updatedAt)+((snapshot.droppedClips||snapshot.droppedSamples||snapshot.droppedRoute||snapshot.droppedHolds)?' · 일부 기록은 저장 상한으로 생략':''))).catch(()=>diagStatus('진단 저장 실패 · 운행 종료 전 진단 파일을 내려받으세요.'));
 }
 function diagBegin(){
   diagRing=[];
@@ -215,7 +241,7 @@ function warmTick(){
   drive={id:Date.now(),start:Date.now(),end:Date.now(),km:0,cnt:cnt,events:[],version:DIAG_VERSION};
   diagBegin();
   saveTimer=setInterval(saveDrive,15000); saveDrive();
-  $('st').textContent=lock?'측정 중 · 화면유지':'측정 중 · 화면유지 불가';
+  $('quality').textContent='측정 중';
   $('msg').textContent='측정 시작'; beep(2000,1);
 }
 function endDrive(){
@@ -244,7 +270,7 @@ const fmtS=ms=>new Date(ms).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2
 function driveHTML(d){
   const nd=TYPES.reduce((s,t)=>s+d.cnt[t][0],0), nw=TYPES.reduce((s,t)=>s+d.cnt[t][1],0);
   const rows=d.events.map(e=>'<div class="er"><span>'+fmtS(e.t)+'</span><span style="color:var(--'+(e.l==='d'?'brk':'acc')+')">'+e.n+(e.l==='d'?' 위반':' 경고')+'</span><span style="color:var(--'+(e.l==='d'?'brk':'acc')+')">'+(e.a>0?'+':'')+e.a+'</span><span>'+(e.lim==null?'-':((e.n==='급감속'||e.n==='급정지')?'-':'+')+baseLim(e.n,e.v))+'</span><span>'+e.v+'km/h·±'+e.acc+'m'+'</span></div>').join('')||'<div>이벤트 없음</div>';
-  return '<details class="dr"><summary>'+fmtT(d.start)+'~'+fmtT(d.end)+' · '+d.km+'km · 위반 '+nd+' · 경고 '+nw+'</summary><div style="color:var(--mute);font-size:15px;margin-bottom:6px">최대 가속 '+(d.maxA!=null?'+'+d.maxA.toFixed(1):'-')+' · 최대 감속 '+(d.minA!=null?d.minA.toFixed(1):'-')+' (km/h/초)'+(d.quality?' · 판정 보류 '+d.quality.holdCount+'구간 / '+Math.round(d.quality.holdMs/1000)+'초':'')+'</div><div class="evg">'+cellsHTML(d.cnt)+'</div><div class="el"><div class="er hd"><span>시각</span><span>유형</span><span>가속도</span><span>기준</span><span>속도·GPS오차</span></div>'+rows+'</div><button class="ghost routeshow" data-id="'+d.id+'">운행 1건의 지도</button><button class="ghost csvfile" data-id="'+d.id+'">차량 비교 CSV</button><button class="ghost diagcopy" data-id="'+d.id+'">진단 복사</button><button class="ghost diagfile" data-id="'+d.id+'">진단 파일 저장</button><button class="ghost del" data-id="'+d.id+'">이 운행 삭제</button></details>';
+  return '<details class="dr"><summary><span class="trip-time">'+fmtT(d.start)+'–'+fmtT(d.end)+'</span><span class="trip-meta"><span>'+d.km+' km</span><span class="danger-text">위반 '+nd+'</span><span class="warning-text">경고 '+nw+'</span></span><span class="trip-chevron" aria-hidden="true"></span></summary><div class="trip-content"><div style="color:var(--mute);font-size:15px;margin-bottom:6px">최대 가속 '+(d.maxA!=null?'+'+d.maxA.toFixed(1):'-')+' · 최대 감속 '+(d.minA!=null?d.minA.toFixed(1):'-')+' (km/h/초)'+(d.quality?' · 판정 보류 '+d.quality.holdCount+'구간 / '+Math.round(d.quality.holdMs/1000)+'초':'')+'</div><div class="evg">'+cellsHTML(d.cnt)+'</div><div class="el"><div class="er hd"><span>시각</span><span>유형</span><span>가속도</span><span>기준</span><span>속도·GPS오차</span></div>'+rows+'</div><button class="ghost routeshow" data-id="'+d.id+'">운행 경로 보기</button><button class="ghost del" data-id="'+d.id+'">운행 삭제</button></div></details>';
 }
 function openHist(){
   if(active)saveDrive();
@@ -254,9 +280,9 @@ function openHist(){
   Object.keys(days).forEach(k=>{
     const ds=days[k], tot=newCnt(); let km2=0, min=0;
     ds.forEach(d=>{ km2+=d.km; min+=(d.end-d.start)/60000; TYPES.forEach(t=>{ tot[t][0]+=d.cnt[t][0]; tot[t][1]+=d.cnt[t][1]; }); });
-    h+='<div class="day"><h3>'+new Date(ds[0].start).toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'})+'</h3>';
+    h+='<div class="day"><div class="day-heading"><h3>'+new Date(ds[0].start).toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'})+'</h3><button class="ghost dayfile" data-start="'+ds[0].start+'">하루 진단 파일 저장</button></div>';
     h+='<div>운행 '+ds.length+'회 · '+Math.round(min)+'분 · '+km2.toFixed(1)+'km</div><div class="evg">'+cellsHTML(tot)+'</div>';
-    h+='<button class="ghost dayfile" data-start="'+ds[0].start+'">하루 진단 파일 저장</button>';
+
     h+=ds.map(driveHTML).join('')+'</div>';
   });
   if(!log.length) h+='<p>아직 기록이 없어요.</p>';
@@ -315,7 +341,7 @@ function hold(reason,reset=false){
 }
 function resumeJudging(){
   closeHold();if(sample)sample.quality='valid';
-  $('quality').textContent='D2 · 판정 중';
+  $('quality').textContent='측정 중';
 }
 function checkSignal(){
   if(watch!=null&&lastCallbackAt&&Date.now()-lastCallbackAt>3000){
@@ -440,7 +466,7 @@ async function start(){
   qualityTimer=setInterval(checkSignal,1000);
   cnt=newCnt(); prevLvl='ok'; hist=[]; lastKmh=null; prevDanger=false; lastLvl=''; active=false; warmAt=0; drive=null;
   updEv();
-  $('msg').textContent='GPS 신호 찾는 중…'; $('st').textContent='GPS 연결 중';
+  $('msg').textContent='GPS 신호 찾는 중…'; $('quality').textContent='GPS 연결 중';
   watch=navigator.geolocation.watchPosition(onPos,err=>{
     hold(err.code===1?'위치 권한 없음':'GPS 수신 오류',true);$('v').textContent='—';
   },{enableHighAccuracy:true,maximumAge:0,timeout:10000});
@@ -450,8 +476,8 @@ function stop(){
   if(active) beep(1500,1); endDrive();
   if(watch!=null) navigator.geolocation.clearWatch(watch); watch=null;
   try{ lock&&lock.release(); }catch(e){} lock=null;
-  document.body.className=''; $('st').textContent='대기 중'; $('msg').textContent='시작을 누르세요';
-  $('quality').textContent='D2-OSM2 · 측정 대기';
+  document.body.className=''; $('quality').textContent='대기 중'; $('msg').textContent='시작을 누르세요';
+  $('quality').textContent='대기 중';
   $('btn').textContent='시작'; $('btn').className='';
 }
 const escapeHTML=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -548,7 +574,7 @@ async function drawLeafletRoute(token){
         maxZoom:19,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
         updateWhenIdle:true,keepBuffer:1
       }).on('tileerror',()=>{if(token===routeToken)$('mapStatus').textContent='배경 지도 연결 실패 · GPS 궤적과 이벤트는 그대로 표시합니다.';}).addTo(map);
-      $('mapStatus').textContent='OpenStreetMap · 원본 GPS 기록 (도로 맞춤 없음)';
+      $('mapStatus').textContent='저장된 운행 경로';
     }else $('mapStatus').textContent='파일로 열면 GPS 궤적만 표시합니다. 도로 배경은 기존 HTTPS 앱 주소 또는 localhost에서 확인하세요.';
     const raw=L.layerGroup().addTo(map),held=L.layerGroup().addTo(map);
     const positions=[];
@@ -565,9 +591,9 @@ async function drawLeafletRoute(token){
     routeMarkers=[];
     routeView.events.forEach((e,i)=>{
       if(!hasPosition(e))return;
-      positions.push([e.lat,e.lon]);const [color,label]=eventStyle(e.n);
-      const marker=L.marker([e.lat,e.lon],{title:(i+1)+'. '+e.n,
-        icon:L.divIcon({className:'eventPin',html:'<span style="background:'+color+';border-color:'+(e.l==='d'?'#ff5a6e':'#f2b134')+'">'+label+(i+1)+'</span>',iconSize:[42,32],iconAnchor:[21,16]})})
+      positions.push([e.lat,e.lon]);const color=e.l==='d'?'#ff5a6e':'#f2b134';
+      const marker=L.marker([e.lat,e.lon],{title:e.n+' '+(e.l==='d'?'위반':'경고'),
+        icon:L.divIcon({className:'eventPin',html:'<span style="background:'+color+'">'+escapeHTML(e.n)+'</span>',iconSize:[62,30],iconAnchor:[31,15]})})
         .bindPopup(detailNode(eventDetail(e)),{minWidth:220,maxWidth:280,maxHeight:220}).addTo(map);
       marker.on('click',()=>{$('routeDetail').textContent=eventDetail(e);});routeMarkers[i]=marker;
     });
@@ -585,7 +611,7 @@ async function drawLeafletRoute(token){
 async function openRoute(id){
   if(active){alert('운행을 종료한 뒤 전체 경로를 확인해 주세요.');return;}
   closeRoute();const token=++routeToken;$('routePanel').hidden=false;
-  $('routePanel').innerHTML='<button class="ghost" id="routeClose">닫기</button><h2 id="routeTitle">운행 1건의 지도</h2><p id="mapStatus" role="status">경로 읽는 중…</p><button class="ghost" id="routeFit">전체 경로 보기</button><button class="ghost" id="routeRetry">지도 다시 시도</button><div id="routeMap"></div><p>파랑 선: 원본 GPS 궤적 · 회색 점: 보류/신뢰도 미확인<br>가: 급가속 · 출: 급출발 · 감: 급감속 · 정: 급정지<br>마커 테두리 빨강: 위반 · 노랑: 경고<br>GPS 튐도 그대로 표시합니다. 15초 초과 수신 공백·역순 시각·좌표 누락에서는 선을 끊습니다.</p><p id="routeCoverage"></p><p id="routeDetail" style="white-space:pre-wrap">마커 또는 아래 이벤트를 선택하세요.</p><div id="routeEvents"></div><p><a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noopener">지도 오류 신고</a> · <a href="https://operations.osmfoundation.org/policies/tiles/" target="_blank" rel="noopener">지도 이용정책</a></p>';
+  $('routePanel').innerHTML='<button class="ghost" id="routeClose">닫기</button><h2 id="routeTitle">운행 경로 보기</h2><p id="mapStatus" role="status">경로 읽는 중…</p><button class="ghost" id="routeFit">전체 경로 보기</button><button class="ghost" id="routeRetry">지도 다시 시도</button><div id="routeMap" aria-label="운행 경로 지도"></div><div class="map-legend"><span class="legend-danger">위반</span><span class="legend-warning">경고</span><span class="legend-route">운행 경로</span></div><p class="map-hint">표시를 누르면 당시 기록을 볼 수 있어요.</p><details class="map-notes"><summary>GPS 기록 안내</summary><p>회색 점은 GPS 판정을 보류했거나 상태를 확인할 수 없는 위치예요. GPS 오차로 경로가 도로에서 벗어날 수 있고, 기록이 끊긴 구간은 선으로 연결하지 않아요.</p><p id="routeCoverage"></p></details><p id="routeDetail" style="white-space:pre-wrap">아래 기록을 눌러도 위치를 확인할 수 있어요.</p><div id="routeEvents"></div><p><a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noopener">지도 오류 신고</a> · <a href="https://operations.osmfoundation.org/policies/tiles/" target="_blank" rel="noopener">지도 이용정책</a></p>';
   $('routeClose').onclick=closeRoute;
   $('routeRetry').onclick=()=>drawLeafletRoute(token);
   try{
@@ -593,11 +619,11 @@ async function openRoute(id){
     if(token!==routeToken)return;
     const basic=loadLog().find(x=>x.id===id),points=routeData(d);
     routeView={points,segments:routeSegments(points),events:basic?.events||[]};
-    $('routeTitle').textContent=(basic?fmtT(basic.start)+'~'+fmtT(basic.end)+' · ':'')+'운행 1건의 지도';
+    $('routeTitle').textContent=(basic?fmtT(basic.start)+'~'+fmtT(basic.end)+' · ':'')+'운행 경로 보기';
     $('routeCoverage').textContent='저장 좌표 '+points.filter(hasPosition).length+'개 · '+(d?.samples?.length?'전체 수신 기록 우선 사용':'이전 기록: 저장된 간격별 좌표만 사용')+
       (d?.droppedSamples||d?.droppedRoute?' · 저장 상한으로 일부 기록 누락':'')+
       (readFailed?' · 진단 저장소 읽기 실패':!d?' · 상세 진단 없음':'')+' · 수신되지 않거나 저장되지 않은 구간은 복원하지 않습니다.';
-    $('routeEvents').innerHTML=routeView.events.map((e,i)=>'<button class="ghost routeEvent" data-event="'+i+'">'+(i+1)+'. '+escapeHTML(fmtS(e.t)+' '+e.n+' '+(e.l==='d'?'위반':'경고'))+(!hasPosition(e)?' (좌표 없음)':'')+'</button>').join('')||'<p>이벤트 없음</p>';
+    $('routeEvents').innerHTML=routeView.events.map((e,i)=>'<button class="ghost routeEvent" data-event="'+i+'">'+escapeHTML(fmtS(e.t)+' '+e.n+' '+(e.l==='d'?'위반':'경고'))+(!hasPosition(e)?' (좌표 없음)':'')+'</button>').join('')||'<p>이벤트 없음</p>';
     document.querySelectorAll('.routeEvent').forEach(b=>b.onclick=()=>selectRouteEvent(Number(b.dataset.event)));
     await drawLeafletRoute(token);
   }catch(e){if(token===routeToken)$('mapStatus').textContent='경로를 읽지 못했습니다.';}
@@ -615,5 +641,6 @@ document.addEventListener('visibilitychange',async()=>{
 </script>
 </body>
 </html>
+
 
 
