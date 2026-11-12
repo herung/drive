@@ -86,6 +86,24 @@ body.q .msg{font-size:clamp(18px,5.5vw,28px);white-space:nowrap}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .legend-error:before{background:#94a3b8}
 @media(min-width:650px){.er{grid-template-columns:70px 95px 58px 44px minmax(110px,1fr) 42px;font-size:14px;gap:5px}.er.hd{font-size:12px}}
+
+/* UI3: readable mobile records and shared error-column alignment. */
+.er{grid-template-columns:58px minmax(44px,.8fr) 42px 28px minmax(66px,1.2fr) 34px;gap:3px;min-width:287px;font-size:14px;line-height:1.45;font-variant-numeric:tabular-nums;padding:12px 0}
+.er.hd{font-size:12px;line-height:1.5}
+.er.hd>span:last-child,.er>.error-toggle{justify-self:stretch;text-align:center}
+.error-toggle{width:100%;min-height:44px;margin:0;padding:0}
+.error-check{width:22px;height:22px;flex:none;margin:0}
+.event-level,.event-motion>span{display:block}
+.event-level,.event-gps{font-size:13px;margin-top:3px}
+.event-gps{color:var(--mute)}
+.er.is-error>span{opacity:.85}
+.trip-meta,.excluded-count{font-size:14px}
+.trip-content .evg .c{font-size:14px}
+.footer-meta,.sound-toggle,.safety-note,.scale,.scale #gps{font-size:14px}
+.top>span:last-child{font-size:13px!important}
+.dayfile{font-size:14px;max-width:150px}
+.map-legend,#routePanel #mapStatus,#routePanel .map-hint,.map-notes,#routePanel .map-notes p,#routePanel>p:last-child{font-size:14px;line-height:1.6}
+@media(min-width:650px){.er{grid-template-columns:76px minmax(85px,1fr) 62px 48px minmax(110px,1.2fr) 44px;gap:5px;font-size:16px}.er.hd,.event-level,.event-gps{font-size:14px}.trip-meta{font-size:15px}}
 </style>
 </head>
 <body>
@@ -100,7 +118,7 @@ body.q .msg{font-size:clamp(18px,5.5vw,28px);white-space:nowrap}
 
 <button id="btn">시작</button>
 <button id="hbtn" class="ghost">기록 보기</button>
-<div id="hist"></div><section id="routePanel" hidden></section><div class="footer-meta"><label class="sound-toggle"><input type="checkbox" id="snd" checked> 소리 알림</label><p id="diagStatus">D2-UI2 · 자동 저장</p></div>
+<div id="hist"></div><section id="routePanel" hidden></section><div class="footer-meta"><label class="sound-toggle"><input type="checkbox" id="snd" checked> 소리 알림</label><p id="diagStatus">D2-UI3 · 자동 저장</p></div>
 <p class="note safety-note">화면을 켜 둔 채 거치대에 두고 사용하세요.<br>운전 중에는 소리로 확인하세요.</p>
 <script>
 const MAX=14;
@@ -137,7 +155,7 @@ function updEv(){
 let active=false, warmAt=0, warmTimer=null, saveTimer=null, drive=null, km=0;
 const KEY='drive_log_v1';
 // Diagnostics are observers only: no values below feed the driving classifier.
-const DIAG_VERSION='2026-11-13-D2-UI2';
+const DIAG_VERSION='2026-11-13-D2-UI3';
 let diag=null, sample=null, diagRing=[], diagDBPromise=null, diagLastEnded=null, diagPrunedAt=0;
 function diagStatus(message){$('diagStatus').textContent=message;}
 function diagDB(){
@@ -166,7 +184,7 @@ function diagSave(){
   if(!diag)return;
   diag.updatedAt=Date.now();
   const snapshot=JSON.parse(JSON.stringify(diag));
-  diagWrite(snapshot).then(()=>diagStatus('D2-UI2 · 저장 '+fmtT(snapshot.updatedAt)+((snapshot.droppedClips||snapshot.droppedSamples||snapshot.droppedRoute||snapshot.droppedHolds)?' · 일부 기록은 저장 상한으로 생략':''))).catch(()=>diagStatus('진단 저장 실패 · 운행 종료 전 진단 파일을 내려받으세요.'));
+  diagWrite(snapshot).then(()=>diagStatus('D2-UI3 · 저장 '+fmtT(snapshot.updatedAt)+((snapshot.droppedClips||snapshot.droppedSamples||snapshot.droppedRoute||snapshot.droppedHolds)?' · 일부 기록은 저장 상한으로 생략':''))).catch(()=>diagStatus('진단 저장 실패 · 운행 종료 전 진단 파일을 내려받으세요.'));
 }
 function diagBegin(){
   diagRing=[];
@@ -296,8 +314,8 @@ function setEventError(id,index,checked){
 function driveHTML(d){
   const counts=effectiveCounts(d),excluded=(d.events||[]).filter(e=>e.userError===true).length;
   const nd=TYPES.reduce((s,t)=>s+counts[t][0],0), nw=TYPES.reduce((s,t)=>s+counts[t][1],0);
-  const rows=d.events.map((e,i)=>'<div class="er'+(e.userError?' is-error':'')+'"><span>'+fmtS(e.t)+'</span><span style="color:var(--'+(e.l==='d'?'brk':'acc')+')">'+e.n+(e.l==='d'?' 위반':' 경고')+'</span><span style="color:var(--'+(e.l==='d'?'brk':'acc')+')">'+(e.a>0?'+':'')+e.a+'</span><span>'+(e.lim==null?'-':((e.n==='급감속'||e.n==='급정지')?'-':'+')+baseLim(e.n,e.v))+'</span><span>'+e.v+'km/h·±'+e.acc+'m'+'</span><label class="error-toggle"><input class="error-check" type="checkbox" data-drive="'+d.id+'" data-event="'+i+'" aria-label="'+fmtS(e.t)+' '+e.n+' 오류 표시" '+(e.userError?'checked':'')+'><span class="sr-only">오류</span></label></div>').join('')||'<div>이벤트 없음</div>';
-  return '<details class="dr" data-drive="'+d.id+'"><summary><span class="trip-time">'+fmtT(d.start)+'–'+fmtT(d.end)+'</span><span class="trip-meta"><span>'+d.km+' km</span><span class="danger-text">위반 '+nd+'</span><span class="warning-text">경고 '+nw+'</span>'+(excluded?'<span class="excluded-count">오류 '+excluded+'건 제외</span>':'')+'</span><span class="trip-chevron" aria-hidden="true"></span></summary><div class="trip-content"><div style="color:var(--mute);font-size:15px;margin-bottom:6px">최대 가속 '+(d.maxA!=null?'+'+d.maxA.toFixed(1):'-')+' · 최대 감속 '+(d.minA!=null?d.minA.toFixed(1):'-')+' (km/h/초)'+(d.quality?' · 판정 보류 '+d.quality.holdCount+'구간 / '+Math.round(d.quality.holdMs/1000)+'초':'')+'</div><div class="evg">'+cellsHTML(counts)+'</div><div class="el"><div class="er hd"><span>시각</span><span>유형</span><span>가속도</span><span>기준</span><span>속도·GPS오차</span><span>오류</span></div>'+rows+'</div><button class="ghost routeshow" data-id="'+d.id+'">운행 경로 보기</button><button class="ghost del" data-id="'+d.id+'">운행 삭제</button></div></details>';
+  const rows=d.events.map((e,i)=>'<div class="er'+(e.userError?' is-error':'')+'"><span>'+fmtS(e.t)+'</span><span style="color:var(--'+(e.l==='d'?'brk':'acc')+')">'+e.n+'<span class="event-level">'+(e.l==='d'?'위반':'경고')+'</span></span><span style="color:var(--'+(e.l==='d'?'brk':'acc')+')">'+(e.a>0?'+':'')+e.a+'</span><span>'+(e.lim==null?'-':((e.n==='급감속'||e.n==='급정지')?'-':'+')+baseLim(e.n,e.v))+'</span><span class="event-motion"><span>'+e.v+'km/h</span><span class="event-gps">±'+e.acc+'m</span></span><label class="error-toggle"><input class="error-check" type="checkbox" data-drive="'+d.id+'" data-event="'+i+'" aria-label="'+fmtS(e.t)+' '+e.n+' 오류 표시" '+(e.userError?'checked':'')+'><span class="sr-only">오류</span></label></div>').join('')||'<div>이벤트 없음</div>';
+  return '<details class="dr" data-drive="'+d.id+'"><summary><span class="trip-time">'+fmtT(d.start)+'–'+fmtT(d.end)+'</span><span class="trip-meta"><span>'+d.km+' km</span><span class="danger-text">위반 '+nd+'</span><span class="warning-text">경고 '+nw+'</span>'+(excluded?'<span class="excluded-count">오류 '+excluded+'건 제외</span>':'')+'</span><span class="trip-chevron" aria-hidden="true"></span></summary><div class="trip-content"><div style="color:var(--mute);font-size:15px;margin-bottom:6px">최대 가속 '+(d.maxA!=null?'+'+d.maxA.toFixed(1):'-')+' · 최대 감속 '+(d.minA!=null?d.minA.toFixed(1):'-')+' (km/h/초)'+(d.quality?' · 판정 보류 '+d.quality.holdCount+'구간 / '+Math.round(d.quality.holdMs/1000)+'초':'')+'</div><div class="evg">'+cellsHTML(counts)+'</div><div class="el"><div class="er hd"><span>시각</span><span>유형</span><span>가속도</span><span>기준</span><span>속도 / GPS</span><span>오류</span></div>'+rows+'</div><button class="ghost routeshow" data-id="'+d.id+'">운행 경로 보기</button><button class="ghost del" data-id="'+d.id+'">운행 삭제</button></div></details>';
 }
 function openHist(){
   if(active)saveDrive();
@@ -680,6 +698,7 @@ document.addEventListener('visibilitychange',async()=>{
 </script>
 </body>
 </html>
+
 
 
 
