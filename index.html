@@ -88,13 +88,16 @@ body.q .msg{font-size:clamp(18px,5.5vw,28px);white-space:nowrap}
 @media(min-width:650px){.er{grid-template-columns:70px 95px 58px 44px minmax(110px,1fr) 42px;font-size:14px;gap:5px}.er.hd{font-size:12px}}
 
 /* UI3: readable mobile records and shared error-column alignment. */
-.er{grid-template-columns:58px minmax(44px,.8fr) 42px 28px minmax(66px,1.2fr) 34px;gap:3px;min-width:287px;font-size:14px;line-height:1.45;font-variant-numeric:tabular-nums;padding:12px 0}
+.er{grid-template-columns:55px 73px 39px 26px minmax(102px,1fr) 26px;gap:2px;min-width:331px;font-size:14px;line-height:1.45;font-variant-numeric:tabular-nums;padding:12px 0}
 .er.hd{font-size:12px;line-height:1.5}
 .er.hd>span:last-child,.er>.error-toggle{justify-self:stretch;text-align:center}
 .error-toggle{width:100%;min-height:44px;margin:0;padding:0}
 .error-check{width:22px;height:22px;flex:none;margin:0}
-.event-level,.event-motion>span{display:block}
-.event-level,.event-gps{font-size:13px;margin-top:3px}
+.event-level,.event-motion>span{display:inline}
+.event-level:before{content:" "}.event-gps:before{content:" · "}
+.event-motion{white-space:nowrap}
+.trip-content{padding-left:10px;padding-right:10px}
+.event-level,.event-gps{font-size:13px;margin-top:0}
 .event-gps{color:var(--mute)}
 .er.is-error>span{opacity:.85}
 .trip-meta,.excluded-count{font-size:14px}
@@ -103,7 +106,7 @@ body.q .msg{font-size:clamp(18px,5.5vw,28px);white-space:nowrap}
 .top>span:last-child{font-size:13px!important}
 .dayfile{font-size:14px;max-width:150px}
 .map-legend,#routePanel #mapStatus,#routePanel .map-hint,.map-notes,#routePanel .map-notes p,#routePanel>p:last-child{font-size:14px;line-height:1.6}
-@media(min-width:650px){.er{grid-template-columns:76px minmax(85px,1fr) 62px 48px minmax(110px,1.2fr) 44px;gap:5px;font-size:16px}.er.hd,.event-level,.event-gps{font-size:14px}.trip-meta{font-size:15px}}
+@media(min-width:650px){.er{grid-template-columns:76px minmax(95px,1fr) 62px 48px minmax(145px,1.2fr) 44px;gap:5px;font-size:16px}.er.hd,.event-level,.event-gps{font-size:14px}.trip-meta{font-size:15px}}
 </style>
 </head>
 <body>
@@ -118,7 +121,7 @@ body.q .msg{font-size:clamp(18px,5.5vw,28px);white-space:nowrap}
 
 <button id="btn">시작</button>
 <button id="hbtn" class="ghost">기록 보기</button>
-<div id="hist"></div><section id="routePanel" hidden></section><div class="footer-meta"><label class="sound-toggle"><input type="checkbox" id="snd" checked> 소리 알림</label><p id="diagStatus">D2-UI3 · 자동 저장</p></div>
+<div id="hist"></div><section id="routePanel" hidden></section><div class="footer-meta"><label class="sound-toggle"><input type="checkbox" id="snd" checked> 소리 알림</label><p id="diagStatus">D2-UI4 · 자동 저장</p></div>
 <p class="note safety-note">화면을 켜 둔 채 거치대에 두고 사용하세요.<br>운전 중에는 소리로 확인하세요.</p>
 <script>
 const MAX=14;
@@ -155,7 +158,7 @@ function updEv(){
 let active=false, warmAt=0, warmTimer=null, saveTimer=null, drive=null, km=0;
 const KEY='drive_log_v1';
 // Diagnostics are observers only: no values below feed the driving classifier.
-const DIAG_VERSION='2026-11-13-D2-UI3';
+const DIAG_VERSION='2026-11-13-D2-UI4';
 let diag=null, sample=null, diagRing=[], diagDBPromise=null, diagLastEnded=null, diagPrunedAt=0;
 function diagStatus(message){$('diagStatus').textContent=message;}
 function diagDB(){
@@ -184,7 +187,7 @@ function diagSave(){
   if(!diag)return;
   diag.updatedAt=Date.now();
   const snapshot=JSON.parse(JSON.stringify(diag));
-  diagWrite(snapshot).then(()=>diagStatus('D2-UI3 · 저장 '+fmtT(snapshot.updatedAt)+((snapshot.droppedClips||snapshot.droppedSamples||snapshot.droppedRoute||snapshot.droppedHolds)?' · 일부 기록은 저장 상한으로 생략':''))).catch(()=>diagStatus('진단 저장 실패 · 운행 종료 전 진단 파일을 내려받으세요.'));
+  diagWrite(snapshot).then(()=>diagStatus('D2-UI4 · 저장 '+fmtT(snapshot.updatedAt)+((snapshot.droppedClips||snapshot.droppedSamples||snapshot.droppedRoute||snapshot.droppedHolds)?' · 일부 기록은 저장 상한으로 생략':''))).catch(()=>diagStatus('진단 저장 실패 · 운행 종료 전 진단 파일을 내려받으세요.'));
 }
 function diagBegin(){
   diagRing=[];
@@ -698,6 +701,7 @@ document.addEventListener('visibilitychange',async()=>{
 </script>
 </body>
 </html>
+
 
 
 
