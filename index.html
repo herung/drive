@@ -61,6 +61,7 @@ body.q #quality{color:#85b9ee}.evg{gap:8px}.evg .c{padding:10px 3px;border-radiu
 .scale{align-items:center;font-size:13px;margin-bottom:4px}.scale #gps{font-size:12px;text-align:center}.msg{font-size:29px;min-height:38px}
 #btn{font-size:22px;padding:16px;border-radius:14px}#hbtn{width:100%;margin-right:0;padding:13px;border-radius:14px}
 .footer-meta{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:16px;color:var(--mute);font-size:12px}
+.audio-settings{position:relative}.audio-settings summary{cursor:pointer;padding:10px 0}.audio-options{position:absolute;bottom:100%;left:0;z-index:5;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:4px 12px;color:var(--fg)}
 .sound-toggle{display:flex;align-items:center;gap:6px;white-space:nowrap;font-size:13px;min-height:40px}.sound-toggle input{width:18px;height:18px;accent-color:var(--ok);margin:0}
 #diagStatus{margin:0;text-align:right;line-height:1.5;max-width:65%;overflow-wrap:anywhere}
 .safety-note{max-width:310px;align-self:center;font-size:12px;line-height:1.7;margin:8px auto 0;text-wrap:balance}
@@ -121,18 +122,21 @@ body.q .msg{font-size:clamp(18px,5.5vw,28px);white-space:nowrap}
 
 <button id="btn">시작</button>
 <button id="hbtn" class="ghost">기록 보기</button>
-<div id="hist"></div><section id="routePanel" hidden></section><div class="footer-meta"><label class="sound-toggle"><input type="checkbox" id="snd" checked> 소리 알림</label><p id="diagStatus">D2-UI4 · 자동 저장</p></div>
-<p class="note safety-note">화면을 켜 둔 채 거치대에 두고 사용하세요.<br>운전 중에는 소리로 확인하세요.</p>
-<details class="audio-settings">
+<div id="hist"></div><section id="routePanel" hidden></section><div class="footer-meta"><details class="audio-settings">
   <summary>소리 설정</summary>
-  <label class="sound-toggle"><input type="checkbox" id="bluetoothAudio" role="switch"> 블루투스 이어폰 모드 (50%)</label>
-</details>
+  <div class="audio-options">
+    <label class="sound-toggle"><input type="checkbox" id="bluetoothAudio"> 음량 50%</label>
+    <label class="sound-toggle"><input type="checkbox" id="muteAudio"> 소리 끄기</label>
+  </div>
+</details><p id="diagStatus">D2-UI4 · 자동 저장</p></div>
+<p class="note safety-note">화면을 켜 둔 채 거치대에 두고 사용하세요.<br>운전 중에는 소리로 확인하세요.</p>
 <script>
 const MAX=14;
 const $=id=>document.getElementById(id);
 let watch=null, hist=[], cnt=null, prevLvl='ok', ctx=null, lock=null, lastBeep=0, lastKmh=null, prevDanger=false, lastLvl='';
 
 const bluetoothAudio = $('bluetoothAudio');
+const muteAudio = $('muteAudio');
 const bluetoothAudioKey = 'drive_bluetooth_audio_mode';
 try {
   bluetoothAudio.checked = localStorage.getItem(bluetoothAudioKey) === '1';
@@ -155,13 +159,13 @@ function tone(t,dur,f1,f2){
 }
 // 삡: 짧은 단음
 function beep(freq,n){
-  if(!$('snd').checked||!ctx) return;
+  if(muteAudio.checked||!ctx) return;
   const t0=ctx.currentTime+0.02;
   for(let i=0;i<n;i++) tone(t0+i*0.3,0.22,freq);
 }
 // 삐입 삐입: 높은 음에서 낮은 음으로 떨어지는 소리를 두 번
 function chirp(freq,n){
-  if(!$('snd').checked||!ctx) return;
+  if(muteAudio.checked||!ctx) return;
   const t0=ctx.currentTime+0.02;
   for(let i=0;i<n;i++) tone(t0+i*0.45,0.34,freq,freq*0.7);
 }
