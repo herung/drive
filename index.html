@@ -123,18 +123,34 @@ body.q .msg{font-size:clamp(18px,5.5vw,28px);white-space:nowrap}
 <button id="hbtn" class="ghost">기록 보기</button>
 <div id="hist"></div><section id="routePanel" hidden></section><div class="footer-meta"><label class="sound-toggle"><input type="checkbox" id="snd" checked> 소리 알림</label><p id="diagStatus">D2-UI4 · 자동 저장</p></div>
 <p class="note safety-note">화면을 켜 둔 채 거치대에 두고 사용하세요.<br>운전 중에는 소리로 확인하세요.</p>
+<details class="audio-settings">
+  <summary>소리 설정</summary>
+  <label class="sound-toggle"><input type="checkbox" id="bluetoothAudio" role="switch"> 블루투스 이어폰 모드 (50%)</label>
+</details>
 <script>
 const MAX=14;
 const $=id=>document.getElementById(id);
 let watch=null, hist=[], cnt=null, prevLvl='ok', ctx=null, lock=null, lastBeep=0, lastKmh=null, prevDanger=false, lastLvl='';
 
-// 최대 음량(1.0)의 사각파 + 스피커가 잘 내는 고음역대로 크고 또렷하게
+const bluetoothAudio = $('bluetoothAudio');
+const bluetoothAudioKey = 'drive_bluetooth_audio_mode';
+try {
+  bluetoothAudio.checked = localStorage.getItem(bluetoothAudioKey) === '1';
+} catch {}
+bluetoothAudio.addEventListener('change', () => {
+  try {
+    localStorage.setItem(bluetoothAudioKey, bluetoothAudio.checked ? '1' : '0');
+  } catch {}
+});
+
+// 사각파 + 스피커가 잘 내는 고음역대로 크고 또렷하게
 function tone(t,dur,f1,f2){
   const o=ctx.createOscillator(), g=ctx.createGain();
   o.type='square';
   o.frequency.setValueAtTime(f1,t);
   if(f2) o.frequency.setValueAtTime(f2,t+dur/2);
-  g.gain.setValueAtTime(1,t); g.gain.setValueAtTime(1,t+dur-0.02); g.gain.linearRampToValueAtTime(0,t+dur);
+  const volume = bluetoothAudio.checked ? 0.5 : 1;
+  g.gain.setValueAtTime(volume,t); g.gain.setValueAtTime(volume,t+dur-0.02); g.gain.linearRampToValueAtTime(0,t+dur);
   o.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t+dur);
 }
 // 삡: 짧은 단음
